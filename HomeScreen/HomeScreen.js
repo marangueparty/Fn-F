@@ -1,4 +1,3 @@
-import CircularSlider from '@fseehawer/react-circular-slider';
 import { addDoc, collection, getFirestore, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -9,6 +8,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import { CircularSlider } from 'react-native-circular-slider';
 import { auth } from '../firebase';
 
 const db = getFirestore();
