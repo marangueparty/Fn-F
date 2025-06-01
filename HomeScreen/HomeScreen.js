@@ -1,3 +1,4 @@
+import Slider from '@react-native-community/slider';
 import { addDoc, collection, getFirestore, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -8,7 +9,6 @@ import {
   Vibration,
   View,
 } from 'react-native';
-import Slider from '@react-native-community/slider';
 import { auth } from '../firebase';
 
 const db = getFirestore();
@@ -109,20 +109,21 @@ export default function HomeScreen({ navigation }) {
 
         {phase === 'idle' && (
           <View style={{ alignItems: 'center' }}>
-          <Slider
-            minimumValue={5}
-            maximumValue={120}
-            step={1}
-            value={studyTime}
-            onValueChange={setStudyTime}
-            minimumTrackTintColor="#9b5de5"
-            maximumTrackTintColor="#ddd"
-            style={{ width: 250, height: 40 }}
-          />
-          <Text style={styles.breakText}>Study Time: {studyTime} min</Text>
-          <Text style={styles.breakText}>Break Time: {Math.floor(studyTime / 5)} min</Text>
-
+           <Slider
+             minimumValue={5}
+             maximumValue={120}
+             step={1}
+             value={studyTime}
+             onValueChange={setStudyTime}
+             minimumTrackTintColor="#9b5de5"
+             maximumTrackTintColor="#ddd"
+             style={{ width: 250, height: 40 }}
+           />
+           <Text style={styles.breakText}>Study Time: {studyTime} min</Text>
+           <Text style={styles.breakText}>Break Time: {Math.floor(studyTime / 5)} min</Text>
+         </View>
         )}
+
 
         {phase !== 'idle' && (
           <Text style={styles.timeRemaining}>{formatTime(timeLeft)}</Text>
