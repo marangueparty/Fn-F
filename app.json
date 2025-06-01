@@ -3,7 +3,10 @@
     "name": "orbital",
     "slug": "orbital",
     "version": "1.0.0",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "splash": {
@@ -11,6 +14,21 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"]
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "601490d1-1cb4-476d-a732-2afe5021c3f3"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/601490d1-1cb4-476d-a732-2afe5021c3f3"
+    },
+    "android": {},
+    "ios": {}
   }
 }

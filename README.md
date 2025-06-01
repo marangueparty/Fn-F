@@ -33,12 +33,13 @@ Our goal is to empower students to regain control over their focus when they stu
 █ █   █ █▄▄ █▄▀▄█▄▄ ▄▄▀   █
 █ █▄▄▄█ █▀█▄█▀█▀▄██▄▀█▀▀ ██
 █▄▄▄▄▄▄▄█▄█▄▄▄▄▄████▄▄▄▄▄▄█
+3. Or click on this link: 
 
 ## Test Locally
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/your-username/functioning-focus.git
+git clone https://github.com/marangueparty/Fn-F.git
 cd functioning-focus
 ```
 ### 2. Install dependencies
