@@ -1,87 +1,41 @@
-import Slider from '@react-native-community/slider';
-import { addDoc, collection, getFirestore, serverTimestamp } from 'firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
+import { Audio } from 'expo-av';
 import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  Vibration,
-  View,
-} from 'react-native';
-import { auth } from '../firebase';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AnimatedCircularProgress } from 'react-native-circular-progress';
 
-const db = getFirestore();
-
-export default function HomeScreen({ navigation }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [studyTime, setStudyTime] = useState(30); // in minutes
-  const [breakTime, setBreakTime] = useState(6);
-  const [timeLeft, setTimeLeft] = useState(null); // in seconds
-  const [phase, setPhase] = useState('idle'); // idle, studying, break
+export default function StudyDialScreen() {
+  const [studyMinutes, setStudyMinutes] = useState(25);
+  const [secondsLeft, setSecondsLeft] = useState(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const navigation = useNavigation();
   const timerRef = useRef(null);
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-      } else {
-        navigation.replace('Login');
-      }
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  useEffect(() => {
-    if (timeLeft === 0) {
-      Vibration.vibrate(1000);
-      clearInterval(timerRef.current);
-      if (phase === 'studying') {
-        setPhase('break');
-        setTimeLeft(breakTime * 60);
-      } else if (phase === 'break') {
-        setPhase('idle');
-        setTimeLeft(null);
-      }
-    }
-  }, [timeLeft, phase, breakTime]);
-
-  const startStudySession = async () => {
-    const calculatedBreak = Math.floor(studyTime / 5);
-    setBreakTime(calculatedBreak);
-    setTimeLeft(studyTime * 60);
-    setPhase('studying');
-
-    try {
-      await addDoc(collection(db, 'sessions'), {
-        email: user?.email,
-        studyDuration: studyTime,
-        breakDuration: calculatedBreak,
-        startedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error('Failed to save session:', err);
-    }
+  const startCountdown = () => {
+    setSecondsLeft(studyMinutes * 60);
+    setIsRunning(true);
   };
 
+  const playSound = async () => {
+  const { sound } = await Audio.Sound.createAsync(
+    require('./assets/chime.mp3') // path to your chime file
+  );
+  await sound.playAsync();
+};
+
   useEffect(() => {
-    if (timeLeft !== null) {
+    if (secondsLeft === 0) {
+      clearInterval(timerRef.current);
+      setIsRunning(false);
+      navigation.replace('BreakScreen', { breakMinutes: Math.floor(studyMinutes / 5) });
+    }
+    if (secondsLeft !== null && secondsLeft > 0) {
       timerRef.current = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
+        setSecondsLeft((prev) => prev - 1);
       }, 1000);
       return () => clearInterval(timerRef.current);
     }
-  }, [timeLeft]);
-
-  const handleSignOut = async () => {
-    try {
-      await auth.signOut();
-    } catch (err) {
-      console.error('Error signing out:', err);
-    }
-  };
+  }, [secondsLeft]);
 
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -89,128 +43,82 @@ export default function HomeScreen({ navigation }) {
     return `${m}:${s}`;
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#9b5de5" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <Text style={styles.headerText}>Hello 👋</Text>
-      <Text style={styles.emailText}>{user?.email}</Text>
+      <Text style={styles.title}>{isRunning ? 'Focus Time' : 'Set Study Duration'}</Text>
 
-      <View style={styles.timerContainer}>
-        <Text style={styles.timerLabel}>
-          {phase === 'idle' ? 'Set Study Time' : phase === 'studying' ? 'Studying...' : 'Break Time!'}
-        </Text>
-
-        {phase === 'idle' && (
-          <View style={{ alignItems: 'center' }}>
-           <Slider
-             minimumValue={5}
-             maximumValue={120}
-             step={1}
-             value={studyTime}
-             onValueChange={setStudyTime}
-             minimumTrackTintColor="#9b5de5"
-             maximumTrackTintColor="#ddd"
-             style={{ width: 250, height: 40 }}
-           />
-           <Text style={styles.breakText}>Study Time: {studyTime} min</Text>
-           <Text style={styles.breakText}>Break Time: {Math.floor(studyTime / 5)} min</Text>
-         </View>
+      <AnimatedCircularProgress
+        size={250}
+        width={20}
+        fill={isRunning ? ((1 - secondsLeft / (studyMinutes * 60)) * 100) : 0}
+        tintColor="#9b5de5"
+        backgroundColor="#eee"
+        rotation={0}
+      >
+        {() => (
+          <Text style={styles.timeText}>
+            {isRunning ? formatTime(secondsLeft) : `${studyMinutes} min`}
+          </Text>
         )}
+      </AnimatedCircularProgress>
 
+      {!isRunning && (
+        <View style={styles.controls}>
+          <TouchableOpacity onPress={() => setStudyMinutes((m) => Math.max(5, m - 5))}>
+            <Text style={styles.adjustText}>-5</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setStudyMinutes((m) => m + 5)}>
+            <Text style={styles.adjustText}>+5</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-        {phase !== 'idle' && (
-          <Text style={styles.timeRemaining}>{formatTime(timeLeft)}</Text>
-        )}
-
-        {phase === 'idle' && <Text style={styles.breakText}>Break: {Math.floor(studyTime / 5)} min</Text>}
-      </View>
-
-      {phase === 'idle' && (
-        <TouchableOpacity style={styles.button} onPress={startStudySession}>
+      {!isRunning && (
+        <TouchableOpacity style={styles.button} onPress={startCountdown}>
           <Text style={styles.buttonText}>Start</Text>
         </TouchableOpacity>
       )}
-
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   container: {
     flex: 1,
-    backgroundColor: '#fefbff',
+    backgroundColor: '#fff',
     alignItems: 'center',
-    paddingTop: 80,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
   },
-  headerText: {
-    fontSize: 24,
-    fontWeight: '500',
-    color: '#333',
-  },
-  emailText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#9b5de5',
+  title: {
+    fontSize: 22,
     marginBottom: 30,
-  },
-  timerContainer: {
-    marginVertical: 20,
-    alignItems: 'center',
-  },
-  timerLabel: {
-    fontSize: 20,
     fontWeight: '600',
-    marginBottom: 10,
-    color: '#444',
   },
-  breakText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 10,
+  timeText: {
+    fontSize: 36,
+    color: '#333',
+    fontWeight: 'bold',
   },
-  timeRemaining: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#9b5de5',
+  controls: {
+    flexDirection: 'row',
+    gap: 40,
     marginVertical: 20,
+  },
+  adjustText: {
+    fontSize: 24,
+    color: '#9b5de5',
   },
   button: {
     backgroundColor: '#9b5de5',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    marginTop: 10,
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginTop: 20,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 18,
     fontWeight: '600',
-  },
-  signOutButton: {
-    backgroundColor: '#FF3B30',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 20,
-    marginTop: 30,
-  },
-  signOutText: {
-    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
   },
 });
