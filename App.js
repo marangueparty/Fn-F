@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
+import BreakScreen from './HomeScreen/BreakScreen/BreakScreen';
 import HomeScreen from './HomeScreen/HomeScreen';
 import LoginScreen from './LoginScreen/LoginScreen';
 import SignUpScreen from './SignUp/SignUpScreen';
@@ -33,6 +34,11 @@ export default function App() {
           name="Home"
           component={HomeScreen}
           options={{ title: 'Home', headerLeft: () => null }}
+        />
+        <Stack.Screen
+          name="BreakScreen"
+          component={BreakScreen}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>

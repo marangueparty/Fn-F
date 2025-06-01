@@ -35,7 +35,7 @@ export default function BreakScreen() {
       {showPrompt ? (
         <>
           <Text style={styles.message}>Ready to start your next session?</Text>
-          <TouchableOpacity style={styles.button} onPress={() => navigation.replace('StudyDialScreen')}>
+          <TouchableOpacity style={styles.button} onPress={() => navigation.replace('Home')}>
             <Text style={styles.buttonText}>Start Again</Text>
           </TouchableOpacity>
         </>

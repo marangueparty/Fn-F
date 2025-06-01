@@ -1,8 +1,15 @@
 import { useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { AnimatedCircularProgress } from 'react-native-circular-progress';
+import { PanResponder, StyleSheet, Text, TouchableOpacity, Vibration, View } from 'react-native';
+import Svg, { Circle, G, Line } from 'react-native-svg';
+import { db } from '../firebase';
+
+const RADIUS = 120;
+const STROKE_WIDTH = 14;
+const FULL_CIRCLE = 2 * Math.PI;
+const CENTER = RADIUS;
 
 export default function StudyDialScreen() {
   const [studyMinutes, setStudyMinutes] = useState(25);
@@ -10,23 +17,55 @@ export default function StudyDialScreen() {
   const [isRunning, setIsRunning] = useState(false);
   const navigation = useNavigation();
   const timerRef = useRef(null);
+  const soundRef = useRef(null);
 
-  const startCountdown = () => {
+  const polarToMinutes = (x, y) => {
+    const angle = Math.atan2(y - CENTER, x - CENTER) * (180 / Math.PI) + 180;
+    return Math.round(angle / 360 * 115 + 5); // from 5 to 120
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !isRunning,
+      onPanResponderMove: (e) => {
+        const { locationX, locationY } = e.nativeEvent;
+        const minutes = Math.min(120, Math.max(5, polarToMinutes(locationX, locationY)));
+        setStudyMinutes(minutes);
+      },
+    })
+  ).current;
+
+  const startCountdown = async () => {
     setSecondsLeft(studyMinutes * 60);
     setIsRunning(true);
+
+    try {
+      await addDoc(collection(db, 'sessions'), {
+        studyDuration: studyMinutes,
+        breakDuration: Math.floor(studyMinutes / 5),
+        startedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('Failed to log session:', err);
+    }
   };
 
   const playSound = async () => {
-  const { sound } = await Audio.Sound.createAsync(
-    require('./assets/chime.mp3') // path to your chime file
-  );
-  await sound.playAsync();
-};
+    try {
+      const { sound } = await Audio.Sound.createAsync(require('../assets/chime-sound-7143.mp3'));
+      soundRef.current = sound;
+      await sound.playAsync();
+    } catch (err) {
+      console.warn('Could not play sound:', err);
+    }
+  };
 
   useEffect(() => {
     if (secondsLeft === 0) {
       clearInterval(timerRef.current);
       setIsRunning(false);
+      Vibration.vibrate(1000);
+      playSound();
       navigation.replace('BreakScreen', { breakMinutes: Math.floor(studyMinutes / 5) });
     }
     if (secondsLeft !== null && secondsLeft > 0) {
@@ -37,41 +76,71 @@ export default function StudyDialScreen() {
     }
   }, [secondsLeft]);
 
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, []);
+
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
     const s = (secs % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   };
 
+  const tickMarks = Array.from({ length: 12 }).map((_, i) => {
+    const angle = (i / 12) * 2 * Math.PI;
+    const x1 = CENTER + (RADIUS - STROKE_WIDTH - 8) * Math.cos(angle);
+    const y1 = CENTER + (RADIUS - STROKE_WIDTH - 8) * Math.sin(angle);
+    const x2 = CENTER + (RADIUS - 6) * Math.cos(angle);
+    const y2 = CENTER + (RADIUS - 6) * Math.sin(angle);
+    return <Line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#ccc" strokeWidth={2} />;
+  });
+
+  const strokeLength = FULL_CIRCLE * (RADIUS - STROKE_WIDTH / 2);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{isRunning ? 'Focus Time' : 'Set Study Duration'}</Text>
+      <Text style={styles.title}>{isRunning ? 'Focus Time' : 'Set Your Study Duration'}</Text>
 
-      <AnimatedCircularProgress
-        size={250}
-        width={20}
-        fill={isRunning ? ((1 - secondsLeft / (studyMinutes * 60)) * 100) : 0}
-        tintColor="#9b5de5"
-        backgroundColor="#eee"
-        rotation={0}
-      >
-        {() => (
+      <View {...(!isRunning ? panResponder.panHandlers : {})}>
+        <Svg width={RADIUS * 2} height={RADIUS * 2}>
+          <G>
+            <Circle
+              cx={CENTER}
+              cy={CENTER}
+              r={RADIUS - STROKE_WIDTH / 2}
+              stroke="#eee"
+              strokeWidth={STROKE_WIDTH}
+              fill="none"
+            />
+            <Circle
+              cx={CENTER}
+              cy={CENTER}
+              r={RADIUS - STROKE_WIDTH / 2}
+              stroke="#9b5de5"
+              strokeWidth={STROKE_WIDTH}
+              strokeDasharray={strokeLength}
+              strokeDashoffset={
+                isRunning
+                  ? (1 - secondsLeft / (studyMinutes * 60)) * strokeLength
+                  : 0
+              }
+              strokeLinecap="round"
+              fill="none"
+              transform={`rotate(-90 ${CENTER} ${CENTER})`} // ✅ THIS ROTATES IT TO START FROM TOP
+             />
+            {tickMarks}
+          </G>
+        </Svg>
+        <View style={styles.timeOverlay}>
           <Text style={styles.timeText}>
             {isRunning ? formatTime(secondsLeft) : `${studyMinutes} min`}
           </Text>
-        )}
-      </AnimatedCircularProgress>
-
-      {!isRunning && (
-        <View style={styles.controls}>
-          <TouchableOpacity onPress={() => setStudyMinutes((m) => Math.max(5, m - 5))}>
-            <Text style={styles.adjustText}>-5</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setStudyMinutes((m) => m + 5)}>
-            <Text style={styles.adjustText}>+5</Text>
-          </TouchableOpacity>
         </View>
-      )}
+      </View>
 
       {!isRunning && (
         <TouchableOpacity style={styles.button} onPress={startCountdown}>
@@ -88,7 +157,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
   },
   title: {
     fontSize: 22,
@@ -100,14 +168,12 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: 'bold',
   },
-  controls: {
-    flexDirection: 'row',
-    gap: 40,
-    marginVertical: 20,
-  },
-  adjustText: {
-    fontSize: 24,
-    color: '#9b5de5',
+  timeOverlay: {
+    position: 'absolute',
+    top: CENTER - 18,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   button: {
     backgroundColor: '#9b5de5',
