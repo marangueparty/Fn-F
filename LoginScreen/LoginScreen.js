@@ -1,7 +1,12 @@
+// LoginScreen/LoginScreen.js
 import React, { useState } from 'react';
 import {
   Alert,
+  Dimensions,
   Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
@@ -9,167 +14,136 @@ import {
   View,
 } from 'react-native';
 
-import { auth } from '../firebase';
-
-const validateEmail = (email) => {
-  const re = /\S+@\S+\.\S+/; 
-  return re.test(email);
-};
-
-const validatePassword = (password) => {
-  //ensure that the user uses a strong password, at least 8 characters long,
-  // with at least one uppercase letter, one lowercase letter, one digit, and one symbol
-  const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])[A-Za-z\d@$!%*?&]{8,}$/;
-  return re.test(password);
-};
+// Grab screen dimensions once
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = async () => {
-    // 1. Client-side validation
-    if (!email.trim()) {
-      Alert.alert('Invalid Input', 'Please enter your email address.');
-      return;
-    }
-    if (!validateEmail(email.trim())) {
-      Alert.alert('Invalid Email', 'Please enter a valid email format.');
-      return;
-    }
-    if (!password) {
-      Alert.alert('Invalid Input', 'Please enter your password.');
-      return;
+  const validateEmail = (e) => /\S+@\S+\.\S+/.test(e);
+  const validatePassword = (p) =>
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*\W).{8,}$/.test(p);
+
+  const handleLogin = () => {
+    if (!email.trim() || !validateEmail(email)) {
+      return Alert.alert('Invalid Email', 'Please enter a valid email address.');
     }
     if (!validatePassword(password)) {
-      Alert.alert(
+      return Alert.alert(
         'Weak Password',
-        'Password must be at least 8 characters and include at least one uppercase letter, one lowercase letter, one digit, and one symbol.'
+        'Password must be at least 8 characters and include uppercase, lowercase, a digit & a symbol.'
       );
-      return;
     }
-
-    try {
-      const userCredential = await auth.signInWithEmailAndPassword(
-        email.trim(),
-        password
-      );
-      const user = userCredential.user;
-
-      // make sure that the user is verified
-      if (!user.emailVerified) {
-        Alert.alert(
-          'Email Not Verified',
-          'Please check your inbox for the verification link before logging in.'
-        );
-        await auth.signOut();
-        return;
-      }
-
-      // User is verified send to home screen
-      navigation.replace('Home');
-    } catch (err) {
-      Alert.alert('Login failed', err.message);
-    }
+    // → your Firebase (or API) auth logic here
   };
 
   return (
-    <View style={styles.container}>
-      {/* Display the logo.png at the top */}
-      <Image
-       source={require('../assets/logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-      />
-      
-      {/* Title */}
-      <Text style={styles.title}>Welcome Back</Text>
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {/* Logo */}
+        <Image
+          source={require('../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        style={styles.input}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
+        {/* Title */}
+        <Text style={styles.title}>Welcome Back</Text>
 
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={styles.input}
-      />
+        {/* Email */}
+        <TextInput
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          style={styles.input}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Log In</Text>
-      </TouchableOpacity>
+        {/* Password */}
+        <TextInput
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          style={styles.input}
+        />
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Don’t have an account?</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-          <Text style={styles.linkText}> Sign Up</Text>
+        {/* Log In Button */}
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Log In</Text>
         </TouchableOpacity>
-      </View>
-    </View>
+
+        {/* Sign Up Link */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don’t have an account?</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+            <Text style={styles.linkText}> Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:    {
+  safe: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  container: {
+    flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 30
+    paddingHorizontal: SCREEN_W * 0.05,   //  5% of screen width
   },
-
   logo: {
-    width: 300,
-    height: 300,
+    width: '50%',                         // 50% of container width
+    height: SCREEN_H * 0.25,              // 25% of screen height
     alignSelf: 'center',
-    marginBottom: 30,
+    marginBottom: SCREEN_H * 0.05,        //  5% of screen height
   },
-
-  title:{
-    fontSize: 28,
+  title: {
+    fontSize: SCREEN_H * 0.04,            //  4% of screen height
     fontWeight: 'bold',
-    marginBottom: 40,
-    textAlign: 'center'
+    textAlign: 'center',
+    marginBottom: SCREEN_H * 0.05,        //  5% of screen height
   },
-  input:        {
+  input: {
     width: '100%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#f9f9f9',
-    padding: 12,
+    paddingVertical: SCREEN_H * 0.02,     //  2% of screen height
+    paddingHorizontal: SCREEN_W * 0.03,   //  3% of screen width
     borderRadius: 8,
-    marginBottom: 20
+    backgroundColor: '#f9f9f9',
+    marginBottom: SCREEN_H * 0.02,        //  2% of screen height
   },
-  button:       {
+  button: {
     backgroundColor: '#5e17eb',
-    paddingVertical: 15,
+    paddingVertical: SCREEN_H * 0.025,    //  2.5% of screen height
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10
+    marginTop: SCREEN_H * 0.02,           //  2% of screen height
   },
-  buttonText:   {
+  buttonText: {
     color: '#fff',
+    fontSize: SCREEN_H * 0.022,           //  2.2% of screen height
     fontWeight: 'bold',
-    fontSize: 16
   },
-  footer:       {
+  footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 25
+    marginTop: SCREEN_H * 0.03,           //  3% of screen height
   },
-  footerText:   {
-    fontSize: 14,
-    color: '#444'
+  footerText: {
+    fontSize: SCREEN_H * 0.02,            //  2% of screen height
+    color: '#444',
   },
-  linkText:     {
-    fontSize: 14,
+  linkText: {
+    fontSize: SCREEN_H * 0.02,            //  2% of screen height
     color: '#007AFF',
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });
