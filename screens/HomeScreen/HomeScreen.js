@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Sidebar from '../components/Sidebar';
+import SidebarWrapper from '../../components/SidebarWrapper.js';
 import AchievementsTab from './Tabs/AchievementsTab.js';
 import FocusTab from './Tabs/FocusTab.js';
 import HomeTab from './Tabs/HomeTab.js';
@@ -23,16 +22,9 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <View style={styles.mainContent}>
-        {renderTab()}
-      </View>
-    </View>
+    <SidebarWrapper activeTab={activeTab} setActiveTab={setActiveTab}>
+      {renderTab()}
+    </SidebarWrapper>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flexDirection: 'row', flex: 1 },
-  mainContent: { flex: 1, padding: 16, backgroundColor: '#fff' },
-});
