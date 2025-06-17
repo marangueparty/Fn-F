@@ -1,30 +1,34 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
+  Image,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
-import { auth } from '../firebase';
+import { auth } from '../../firebase';
 
 const validateEmail = (email) => {
-  const re = /\S+@\S+\.\S+/;
+  const re = /\S+@\S+\.\S+/; 
   return re.test(email);
 };
 
 const validatePassword = (password) => {
+  //ensure that the user uses a strong password, at least 8 characters long,
+  // with at least one uppercase letter, one lowercase letter, one digit, and one symbol
   const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])[A-Za-z\d@$!%*?&]{8,}$/;
   return re.test(password);
 };
 
-export default function SignUpScreen({ navigation }) {
+export default function LoginScreen({ navigation }) {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSignUp = async () => {
+  const handleLogin = async () => {
+    // 1. Client-side validation
     if (!email.trim()) {
       Alert.alert('Invalid Input', 'Please enter your email address.');
       return;
@@ -34,7 +38,7 @@ export default function SignUpScreen({ navigation }) {
       return;
     }
     if (!password) {
-      Alert.alert('Invalid Input', 'Please enter a password.');
+      Alert.alert('Invalid Input', 'Please enter your password.');
       return;
     }
     if (!validatePassword(password)) {
@@ -45,32 +49,41 @@ export default function SignUpScreen({ navigation }) {
       return;
     }
 
-    // Create user account in the Firebase Auth system
     try {
-      const userCredential = await auth.createUserWithEmailAndPassword(
+      const userCredential = await auth.signInWithEmailAndPassword(
         email.trim(),
         password
       );
       const user = userCredential.user;
 
-      // Send verification email thru firebase
-      await user.sendEmailVerification();
+      // make sure that the user is verified
+      if (!user.emailVerified) {
+        Alert.alert(
+          'Email Not Verified',
+          'Please check your inbox for the verification link before logging in.'
+        );
+        await auth.signOut();
+        return;
+      }
 
-      Alert.alert(
-        'Verify Your Email',
-        'A verification link has been sent to your inbox. Please check your email before logging in.'
-      );
-
-      await auth.signOut();
-      navigation.replace('Login');
+      // User is verified send to home screen
+      navigation.replace('Home');
     } catch (err) {
-      Alert.alert('Sign up failed', err.message);
+      Alert.alert('Login failed', err.message);
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
+      {/* Display the logo.png at the top */}
+      <Image
+       source={require('../assets/logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      
+      {/* Title */}
+      <Text style={styles.title}>Welcome Back</Text>
 
       <TextInput
         placeholder="Email"
@@ -89,14 +102,14 @@ export default function SignUpScreen({ navigation }) {
         style={styles.input}
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-        <Text style={styles.buttonText}>Sign Up</Text>
+      <TouchableOpacity style={styles.button} onPress={handleLogin}>
+        <Text style={styles.buttonText}>Log In</Text>
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Already have an account?</Text>
-        <TouchableOpacity onPress={() => navigation.replace('Login')}>
-          <Text style={styles.linkText}> Log In</Text>
+        <Text style={styles.footerText}>Don’t have an account?</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+          <Text style={styles.linkText}> Sign Up</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -110,7 +123,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 30
   },
-  title:        {
+
+  logo: {
+    width: 300,
+    height: 300,
+    alignSelf: 'center',
+    marginBottom: 30,
+  },
+
+  title:{
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 40,
