@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -15,7 +14,7 @@ import {
 } from 'react-native';
 
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth } from '../../firebase';
 
 // Grab screen dimensions once
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -49,22 +48,20 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Logo */}
+  <SafeAreaView style={styles.safe}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.container}>
         <Image
-          source={require('../assets/logo.png')}
+          source={require('../../assets/logo.png')}
           style={styles.logo}
           resizeMode="contain"
         />
 
-        {/* Title */}
         <Text style={styles.title}>Welcome Back</Text>
 
-        {/* Email */}
         <TextInput
           placeholder="Email"
           value={email}
@@ -74,7 +71,6 @@ export default function LoginScreen({ navigation }) {
           autoCapitalize="none"
         />
 
-        {/* Password */}
         <TextInput
           placeholder="Password"
           secureTextEntry
@@ -83,21 +79,20 @@ export default function LoginScreen({ navigation }) {
           style={styles.input}
         />
 
-        {/* Log In Button */}
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Log In</Text>
         </TouchableOpacity>
 
-        {/* Sign Up Link */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don’t have an account?</Text>
           <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
             <Text style={styles.linkText}> Sign Up</Text>
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+      </View>
+    </KeyboardAvoidingView>
+  </SafeAreaView>
+);
 }
 
 const styles = StyleSheet.create({

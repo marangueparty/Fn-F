@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   View
 } from 'react-native';
 
-import { auth } from '../firebase';
+import { auth } from '../../firebase';
 
 const validateEmail = (email) => {
   const re = /\S+@\S+\.\S+/;
