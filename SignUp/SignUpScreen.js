@@ -1,67 +1,58 @@
+// SignUpScreen/SignUpScreen.js
 import React, { useState } from 'react';
 import {
   Alert,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
-
-import { auth } from '../firebase';
-
-const validateEmail = (email) => {
-  const re = /\S+@\S+\.\S+/;
-  return re.test(email);
-};
-
-const validatePassword = (password) => {
-  const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])[A-Za-z\d@$!%*?&]{8,}$/;
-  return re.test(password);
-};
 
 export default function SignUpScreen({ navigation }) {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
 
+  const validateEmail = e => /\S+@\S+\.\S+/.test(e);
+  const validatePassword = p =>
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*\W).{8,}$/.test(p);
+
   const handleSignUp = async () => {
     if (!email.trim()) {
-      Alert.alert('Invalid Input', 'Please enter your email address.');
-      return;
+      return Alert.alert('Invalid Input', 'Please enter your email address.');
     }
     if (!validateEmail(email.trim())) {
-      Alert.alert('Invalid Email', 'Please enter a valid email format.');
-      return;
-    }
-    if (!password) {
-      Alert.alert('Invalid Input', 'Please enter a password.');
-      return;
+      return Alert.alert('Invalid Email', 'Please enter a valid email format.');
     }
     if (!validatePassword(password)) {
-      Alert.alert(
+      return Alert.alert(
         'Weak Password',
-        'Password must be at least 8 characters and include at least one uppercase letter, one lowercase letter, one digit, and one symbol.'
+        'Password must be at least 8 characters and include uppercase, lowercase, a digit, and a symbol.'
       );
-      return;
     }
 
-    // Create user account in the Firebase Auth system
     try {
-      const userCredential = await auth.createUserWithEmailAndPassword(
-        email.trim(),
-        password
-      );
-      const user = userCredential.user;
+      // exactly the same host logic as LoginScreen:
+      const host = Platform.OS === 'android'
+        ? 'http://10.0.2.2:3000'
+        : 'http://192.168.1.161:3000'; // ← replace with your Mac’s LAN IP
 
-      // Send verification email thru firebase
-      await user.sendEmailVerification();
+      const res = await fetch(`${host}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error || 'Sign up failed');
+      }
 
       Alert.alert(
         'Verify Your Email',
         'A verification link has been sent to your inbox. Please check your email before logging in.'
       );
-
-      await auth.signOut();
       navigation.replace('Login');
     } catch (err) {
       Alert.alert('Sign up failed', err.message);
@@ -108,13 +99,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     justifyContent: 'center',
-    paddingHorizontal: 30
+    paddingHorizontal: 30,
   },
   title:        {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 40,
-    textAlign: 'center'
+    textAlign: 'center',
   },
   input:        {
     width: '100%',
@@ -123,32 +114,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 20
+    marginBottom: 20,
   },
   button:       {
     backgroundColor: '#5e17eb',
     paddingVertical: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10
+    marginTop: 10,
   },
   buttonText:   {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 16
+    fontSize: 16,
   },
   footer:       {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 25
+    marginTop: 25,
   },
   footerText:   {
     fontSize: 14,
-    color: '#444'
+    color: '#444',
   },
   linkText:     {
     fontSize: 14,
     color: '#007AFF',
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });

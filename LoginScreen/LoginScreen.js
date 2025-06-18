@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Alert,
@@ -14,14 +13,10 @@ import {
   View,
 } from 'react-native';
 
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
-
-// Grab screen dimensions once
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
-  const [email, setEmail] = useState('');
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
 
   const validateEmail = (e) => /\S+@\S+\.\S+/.test(e);
@@ -38,10 +33,26 @@ export default function LoginScreen({ navigation }) {
         'Password must be at least 8 characters and include uppercase, lowercase, a digit & a symbol.'
       );
     }
-    // Firebase sign-in
+
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      // Navigate on success
+      // on device use your laptop’s LAN IP; on iOS Sim you can use localhost
+      const host = Platform.OS === 'android'
+        ? 'http://10.0.2.2:3000'           // Android emulator → your machine
+        : 'http://192.168.1.161:3000';     // replace with your Mac’s LAN IP
+
+      const res = await fetch(`${host}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ email: email.trim(), password })
+      });
+
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error || 'Login failed');
+      }
+
+      // you now have an ID token in json.token
+      // store it (e.g. SecureStore) if you need it, then navigate:
       navigation.replace('Home');
     } catch (err) {
       Alert.alert('Login failed', err.message);
@@ -54,17 +65,12 @@ export default function LoginScreen({ navigation }) {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Logo */}
         <Image
           source={require('../assets/logo.png')}
           style={styles.logo}
           resizeMode="contain"
         />
-
-        {/* Title */}
         <Text style={styles.title}>Welcome Back</Text>
-
-        {/* Email */}
         <TextInput
           placeholder="Email"
           value={email}
@@ -73,8 +79,6 @@ export default function LoginScreen({ navigation }) {
           keyboardType="email-address"
           autoCapitalize="none"
         />
-
-        {/* Password */}
         <TextInput
           placeholder="Password"
           secureTextEntry
@@ -82,13 +86,9 @@ export default function LoginScreen({ navigation }) {
           onChangeText={setPassword}
           style={styles.input}
         />
-
-        {/* Log In Button */}
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Log In</Text>
         </TouchableOpacity>
-
-        {/* Sign Up Link */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don’t have an account?</Text>
           <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -101,58 +101,21 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: SCREEN_W * 0.05,  
-  },
-  logo: {
-    width: '50%',                         
-    height: SCREEN_H * 0.25,              
-    alignSelf: 'center',
-    marginBottom: SCREEN_H * 0.05,        
-  },
-  title: {
-    fontSize: SCREEN_H * 0.04,            
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: SCREEN_H * 0.05,       
-  },
+  safe: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, justifyContent: 'center', paddingHorizontal: SCREEN_W * 0.05 },
+  logo: { width: '50%', height: SCREEN_H * 0.25, alignSelf: 'center', marginBottom: SCREEN_H * 0.05 },
+  title: { fontSize: SCREEN_H * 0.04, fontWeight: 'bold', textAlign: 'center', marginBottom: SCREEN_H * 0.05 },
   input: {
     width: '100%',
-    paddingVertical: SCREEN_H * 0.02,     
-    paddingHorizontal: SCREEN_W * 0.03,   
+    paddingVertical: SCREEN_H * 0.02,
+    paddingHorizontal: SCREEN_W * 0.03,
     borderRadius: 8,
     backgroundColor: '#f9f9f9',
-    marginBottom: SCREEN_H * 0.02,        
+    marginBottom: SCREEN_H * 0.02,
   },
-  button: {
-    backgroundColor: '#5e17eb',
-    paddingVertical: SCREEN_H * 0.025,    
-    alignItems: 'center',
-    marginTop: SCREEN_H * 0.02,           
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: SCREEN_H * 0.022,           
-    fontWeight: 'bold',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: SCREEN_H * 0.03,           
-  },
-  footerText: {
-    fontSize: SCREEN_H * 0.02,            
-    color: '#444',
-  },
-  linkText: {
-    fontSize: SCREEN_H * 0.02,            
-    color: '#007AFF',
-    fontWeight: 'bold',
-  },
+  button: { backgroundColor: '#5e17eb', paddingVertical: SCREEN_H * 0.025, alignItems: 'center', marginTop: SCREEN_H * 0.02 },
+  buttonText: { color: '#fff', fontSize: SCREEN_H * 0.022, fontWeight: 'bold' },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: SCREEN_H * 0.03 },
+  footerText: { fontSize: SCREEN_H * 0.02, color: '#444' },
+  linkText: { fontSize: SCREEN_H * 0.02, color: '#007AFF', fontWeight: 'bold' },
 });
