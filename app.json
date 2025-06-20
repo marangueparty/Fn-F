@@ -29,6 +29,9 @@
       "url": "https://u.expo.dev/601490d1-1cb4-476d-a732-2afe5021c3f3"
     },
     "android": {},
-    "ios": {}
+    "ios": {},
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

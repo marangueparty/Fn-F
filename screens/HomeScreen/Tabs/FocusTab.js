@@ -1,4 +1,7 @@
-import { Text } from 'react-native';
+// screens/HomeScreen/Tabs/FocusTab.js
+import React from 'react';
+import FocusProgress from '../../FocusProgressScreen/FocusProgress';
+
 export default function FocusTab() {
-  return <Text>📘 Focus Placeholder</Text>;
+  return <FocusProgress />;
 }
