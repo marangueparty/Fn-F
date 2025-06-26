@@ -1,9 +1,10 @@
 import Slider from '@react-native-community/slider';
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import WhiteNoisePlayer from '../components/WhiteNoisePlayer';
+import usePickupDetector from './PickUp';
 
 export default function StudyTimer() {
   const navigation = useNavigation();
@@ -102,6 +103,22 @@ export default function StudyTimer() {
     </View>
   );
 }
+
+export function StudySession() {
+  const [timerRunning, setTimerRunning] = useState(false);
+  const { pickupCount } = usePickupDetector(timerRunning);
+
+  return (
+    <View>
+      <Button
+        title={timerRunning ? 'Stop Study' : 'Start Study'}
+        onPress={() => setTimerRunning(!timerRunning)}
+      />
+      <Text>Pick-ups detected: {pickupCount}</Text>
+    </View>
+  );
+}
+
 
 const formatTime = (secs) => {
   const min = Math.floor(secs / 60);
