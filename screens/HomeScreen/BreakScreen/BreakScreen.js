@@ -1,20 +1,18 @@
-import { useNavigation, useRoute } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-export default function BreakScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { breakMinutes } = route.params;
-  const [secondsLeft, setSecondsLeft] = useState(breakMinutes * 60);
-  const [showPrompt, setShowPrompt] = useState(false);
+export default function BreakScreen({ route, navigation }) {
+  const { breakDuration, onBreakEnd } = route.params;
+
+  const [secondsLeft, setSecondsLeft] = useState(breakDuration);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setShowPrompt(true);
+          // Call the callback to resume the next study round
+          if (onBreakEnd) onBreakEnd();
           return 0;
         }
         return prev - 1;
@@ -25,60 +23,23 @@ export default function BreakScreen() {
   }, []);
 
   const formatTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+    const min = Math.floor(secs / 60);
+    const sec = secs % 60;
+    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
   return (
     <View style={styles.container}>
-      {showPrompt ? (
-        <>
-          <Text style={styles.message}>Ready to start your next session?</Text>
-          <TouchableOpacity style={styles.button} onPress={() => navigation.replace('Home')}>
-            <Text style={styles.buttonText}>Start Again</Text>
-          </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <Text style={styles.message}>Take a break 🧘‍♀️</Text>
-          <Text style={styles.timer}>{formatTime(secondsLeft)}</Text>
-        </>
-      )}
+      <Text style={styles.title}>Take a break!</Text>
+      <Text style={styles.timer}>{formatTime(secondsLeft)}</Text>
+      <Text style={styles.subtitle}>You'll return to your next round automatically.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f3e9ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  message: {
-    fontSize: 28,
-    color: '#7a4cd4',
-    fontWeight: '600',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  timer: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#9b5de5',
-  },
-  button: {
-    backgroundColor: '#9b5de5',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 20,
-    marginTop: 20,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  timer: { fontSize: 48, color: '#5e17eb', marginBottom: 10 },
+  subtitle: { fontSize: 16, color: '#666', textAlign: 'center' },
 });
