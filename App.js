@@ -1,5 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import * as Notifications from 'expo-notifications';
+import { useEffect } from 'react';
 
 import BreakScreen from './screens/HomeScreen/BreakScreen/BreakScreen';
 import HomeScreen from './screens/HomeScreen/HomeScreen';
@@ -9,7 +11,25 @@ import SignUpScreen from './screens/SignUp/SignUpScreen';
 
 const Stack = createStackNavigator();
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
 export default function App() {
+  useEffect(() => {
+    async function requestPermissions() {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Notification permissions are required for pick-up alerts.');
+      }
+    }
+    requestPermissions();
+  }, []);
+
   return (
     <NavigationContainer>
       <Stack.Navigator

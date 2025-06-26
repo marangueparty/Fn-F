@@ -1,19 +1,22 @@
 import Slider from '@react-native-community/slider';
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
-import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import WhiteNoisePlayer from '../components/WhiteNoisePlayer';
-import usePickupDetector from './PickUp';
+import usePickupDetector from '../hooks/DetectPickup';
 
 export default function StudyTimer() {
   const navigation = useNavigation();
 
-  const [duration, setDuration] = useState(25); // in minutes
+  const [duration, setDuration] = useState(25);
   const [rounds, setRounds] = useState(1);
   const [currentRound, setCurrentRound] = useState(1);
   const [isRunning, setIsRunning] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(duration * 60);
+
+  // Use the timer running state for pickup detection
+  const { pickupCount } = usePickupDetector(isRunning);
 
   const timerRef = useRef(null);
 
@@ -29,8 +32,7 @@ export default function StudyTimer() {
           clearInterval(timerRef.current);
           setIsRunning(false);
 
-          // Go to break screen
-          const breakTime = Math.floor(duration * 60 / 5); // 1/5 of study
+          const breakTime = Math.floor(duration * 60 / 5);
           navigation.navigate('BreakScreen', {
             breakDuration: breakTime,
             onBreakEnd: handleBreakEnd,
@@ -47,7 +49,7 @@ export default function StudyTimer() {
     if (currentRound < rounds) {
       setCurrentRound((prev) => prev + 1);
       setSecondsLeft(duration * 60);
-      startTimer(); // Start next round
+      startTimer();
     } else {
       navigation.navigate('Home');
     }
@@ -56,6 +58,7 @@ export default function StudyTimer() {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Study Duration</Text>
+      <Text>Pick-ups detected: {pickupCount}</Text>
       <View style={styles.circleShadow}>
         <AnimatedCircularProgress
           size={200}
@@ -82,6 +85,7 @@ export default function StudyTimer() {
           )}
         </AnimatedCircularProgress>
       </View>
+
       <Text style={styles.subtleHint}>Tap to +5 | Hold to -5</Text>
 
       <Text style={styles.label}>Rounds: {rounds}</Text>
@@ -99,26 +103,16 @@ export default function StudyTimer() {
       <TouchableOpacity style={styles.button} onPress={startTimer} disabled={isRunning}>
         <Text style={styles.buttonText}>{isRunning ? 'Running...' : 'Start'}</Text>
       </TouchableOpacity>
-    <WhiteNoisePlayer /> 
+
+      {/* Display pickup count */}
+      <Text style={{ marginTop: 16, fontSize: 16, color: '#5e17eb' }}>
+        Pick-ups detected: {pickupCount}
+      </Text>
+
+      <WhiteNoisePlayer />
     </View>
   );
 }
-
-export function StudySession() {
-  const [timerRunning, setTimerRunning] = useState(false);
-  const { pickupCount } = usePickupDetector(timerRunning);
-
-  return (
-    <View>
-      <Button
-        title={timerRunning ? 'Stop Study' : 'Start Study'}
-        onPress={() => setTimerRunning(!timerRunning)}
-      />
-      <Text>Pick-ups detected: {pickupCount}</Text>
-    </View>
-  );
-}
-
 
 const formatTime = (secs) => {
   const min = Math.floor(secs / 60);
