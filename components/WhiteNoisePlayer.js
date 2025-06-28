@@ -1,65 +1,72 @@
+// components/WhiteNoisePlayer.js
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import WaveformBar from './WaveForm';
 
 export default function WhiteNoisePlayer() {
-  const [sound, setSound] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [sound, setSound]       = useState(null);
+  const [isPlaying, setPlaying] = useState(false);
 
-  const handleToggleSound = async () => {
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: true,
-        interruptionModeIOS: 1,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        interruptionModeAndroid: 1,
-        playThroughEarpieceAndroid: false,
-      });
-
-      if (!sound) {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          require('../assets/sounds/white-noise.mp3'),
-          { shouldPlay: true, isLooping: true }
-        );
-        setSound(newSound);
-        setIsPlaying(true);
-      } else {
-        if (isPlaying) {
-          await sound.pauseAsync();
-          setIsPlaying(false);
-        } else {
-          await sound.playAsync();
-          setIsPlaying(true);
-        }
-      }
-    } catch (e) {
-      console.log('Audio error:', e);
-    }
-  };
-
+  // 1) Configure audio mode once
   useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS:        false,
+      staysActiveInBackground:   true,
+      interruptionModeIOS:       Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+      playsInSilentModeIOS:      true,
+      shouldDuckAndroid:         true,
+      interruptionModeAndroid:   Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+      playThroughEarpieceAndroid:false,
+    });
+  }, []);
+
+  // 2) Preload the sound on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { sound: s } = await Audio.Sound.createAsync(
+          require('../assets/sounds/white-noise.mp3'),
+          { shouldPlay: false, isLooping: true }
+        );
+        if (mounted) setSound(s);
+      } catch (e) {
+        console.error('Failed to load white noise:', e);
+      }
+    })();
     return () => {
+      mounted = false;
       if (sound) sound.unloadAsync();
     };
-  }, [sound]);
+  }, []);
+
+  // 3) When `isPlaying` flips, call playAsync / pauseAsync
+  useEffect(() => {
+    if (!sound) return;
+    if (isPlaying) {
+      sound.playAsync().catch(e => console.error('playAsync error', e));
+    } else {
+      sound.pauseAsync().catch(e => console.error('pauseAsync error', e));
+    }
+  }, [isPlaying, sound]);
+
+  const toggle = () => {
+    if (!sound) return;
+    setPlaying(p => !p);
+  };
 
   return (
     <View style={styles.musicPlayer}>
-      {/* Animated waveform */}
       {isPlaying && (
         <View style={styles.waveformContainer}>
-          {[0, 100, 200, 300, 400, 500, 600, 700].map((delay, i) => (
-            <WaveformBar key={i} delay={delay} />
+          {[...Array(8)].map((_, i) => (
+            <WaveformBar key={i} delay={i * 100} />
           ))}
         </View>
       )}
-
-      {/* Play/Pause Button */}
-      <TouchableOpacity onPress={handleToggleSound} style={styles.musicButton}>
+      <TouchableOpacity onPress={toggle} style={styles.musicButton}>
         <Feather
           name={isPlaying ? 'pause-circle' : 'play-circle'}
           size={42}
