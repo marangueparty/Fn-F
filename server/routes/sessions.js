@@ -1,8 +1,14 @@
-import { Router } from 'express';
-import { addSession } from '../controllers/sessionsController.js';
-const router = new Router();
+// server/routes/sessions.js
 
-// POST /sessions { studyDuration, breakDuration }
-router.post('/', addSession);
+const express            = require('express');
+const sessionsController = require('../controllers/sessionsController');
+const router             = express.Router();
 
-export default router;
+// existing:
+router.post('/',       sessionsController.addSession);
+router.get('/',        sessionsController.listSessions);
+
+// new:
+router.post('/complete', sessionsController.completeSession);
+
+module.exports = router;

@@ -1,9 +1,13 @@
-// server/routes/achievementsRoutes.js
-const express = require('express');
-const { listAchievements } = require('../controllers/achievementsController');
-const router  = express.Router();
+// server/routes/achievementsRoute.js
 
-// GET /achievements → returns this user’s unlocked achievements
-router.get('/', listAchievements);
+const express = require('express');
+const achievementsController = require('../controllers/achievementsController');
+const router = express.Router();
+
+// GET  /achievements/current  → return this user’s current achievements
+router.get('/current', achievementsController.getCurrent);
+
+// POST /achievements/current  → update this user’s current achievement flags
+router.post('/current', achievementsController.postCurrent);
 
 module.exports = router;

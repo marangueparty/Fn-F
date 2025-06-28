@@ -1,85 +1,55 @@
-// server/index.js
-require('dotenv').config();                 // 0️⃣ load .env (contains FIREBASE_API_KEY)
-const express         = require('express');
-const cors            = require('cors');
-const fetch           = require('node-fetch'); // npm install node-fetch@2
-const admin           = require('firebase-admin');
-const serviceAccount  = require('./serviceAccountKey.json');
+// index.js
 
-// your new imports ↓
-const sessionsController     = require('./controllers/sessionsController');
-const achievementsController = require('./controllers/achievementsController');
+const path    = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-// 1️⃣ Initialize Admin SDK
+const express            = require('express');
+const cors               = require('cors');
+const fetch              = require('node-fetch');
+const admin              = require('firebase-admin');
+const serviceAccount     = require('./serviceAccountKey.json');
+
+// ── 1) initialize Firebase Admin
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
+
+const authRouter         = require('./routes/auth');
+const sessionsRouter     = require('./routes/sessions');
+const achievementsRouter = require('./routes/achievementsRoute');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 2️⃣ Health‐check
+// ── 2) Auth middleware for protected routes
+async function authenticate(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid Authorization header' });
+  }
+
+  const idToken = header.split('Bearer ')[1];
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    // attach the Firebase UID to req.user.id
+    req.user = { id: decoded.uid };
+    next();
+  } catch (err) {
+    console.error('Error verifying Firebase ID token:', err);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+}
+
+// ── 3) health check
 app.get('/', (_req, res) => res.send('🟢 Firebase Admin is working!'));
 
-// 3️⃣ Login endpoint (unchanged)
-app.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  const key = process.env.FIREBASE_API_KEY;
-  try {
-    if (!key) throw new Error('Missing FIREBASE_API_KEY');
-    const r = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${key}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, returnSecureToken: true })
-      }
-    );
-    const data = await r.json();
-    if (data.error) {
-      return res.status(400).json({ success: false, error: data.error.message });
-    }
-    return res.json({ success: true, token: data.idToken });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
+// ── 4) mount sub-routers
+app.use('/auth', authRouter);
+// protect sessions and achievements with authenticate middleware
+app.use('/sessions', authenticate, sessionsRouter);
+app.use('/achievements', authenticate, achievementsRouter);
 
-// 4️⃣ Sign-Up endpoint (unchanged)
-app.post('/auth/signup', async (req, res) => {
-  const { email, password } = req.body;
-  const key = process.env.FIREBASE_API_KEY;
-  try {
-    if (!key) throw new Error('Missing FIREBASE_API_KEY');
-    // 4a) call REST signUp
-    const r = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${key}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, returnSecureToken: true })
-      }
-    );
-    const data = await r.json();
-    if (data.error) {
-      return res.status(400).json({ success: false, error: data.error.message });
-    }
-    // 4b) send verification link
-    await admin.auth().generateEmailVerificationLink(email);
-    return res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ➕ record each study session
-app.post('/sessions', sessionsController.addSession);
-
-// ➕ list a user’s unlocked achievements
-app.get('/achievements', achievementsController.listAchievements);
-
+// ── 5) start
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🔌 Server listening on http://localhost:${PORT}`));

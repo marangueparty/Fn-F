@@ -1,15 +1,16 @@
-const admin = require('firebase-admin');
+// server/services/sessionsService.js
+const admin      = require('firebase-admin');
 const FieldValue = admin.firestore.FieldValue;
 
-exports.logSession = async (studyDuration, breakDuration, pickupCount) => {
-  const doc = await admin
-    .firestore()
+exports.logSession = async (userId, studyDuration, breakDuration, pickupCount = 0) => {
+  const docRef = await admin.firestore()
     .collection('sessions')
     .add({
+      userId,
       studyDuration,
       breakDuration,
-      pickupCount,               // ← store your penalty count
+      pickupCount,
       startedAt: FieldValue.serverTimestamp(),
     });
-  return doc.id;
+  return docRef.id;
 };

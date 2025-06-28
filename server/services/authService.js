@@ -1,16 +1,13 @@
-import admin from 'firebase-admin';
-import fetch from 'node-fetch';
-// (we'll use the REST API to verify email/password)
+const admin = require('firebase-admin');
+const fetch = require('node-fetch');
 
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 
-// 1) createUser → admin SDK
-export function createUser(email, password) {
+function createUser(email, password) {
   return admin.auth().createUser({ email, password });
 }
 
-// 2) loginWithEmail → REST call to Firebase Auth REST endpoint
-export async function loginWithEmail(email, password) {
+async function loginWithEmail(email, password) {
   const resp = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
     {
@@ -21,5 +18,7 @@ export async function loginWithEmail(email, password) {
   );
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.error.message);
-  return data.idToken; // your frontend will use this JWT for auth
+  return data.idToken;
 }
+
+module.exports = { createUser, loginWithEmail };
