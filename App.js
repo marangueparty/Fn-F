@@ -7,6 +7,10 @@ import BreakScreen from './screens/HomeScreen/BreakScreen/BreakScreen';
 import HomeScreen from './screens/HomeScreen/HomeScreen';
 import LoginScreen from './screens/LoginScreen/LoginScreen';
 import ProfileScreen from './screens/ProfileScreen/ProfileScreen';
+import AccountScreen from './screens/SettingsScreen/Account';
+import NotificationsScreen from './screens/SettingsScreen/Notifications';
+import SettingsScreen from './screens/SettingsScreen/SettingScreen';
+import SmartWatchScreen from './screens/SettingsScreen/SmartWatch';
 import SignUpScreen from './screens/SignUp/SignUpScreen';
 
 const Stack = createStackNavigator();
@@ -66,6 +70,10 @@ export default function App() {
           component={ProfileScreen}
           options={{ title: 'Settings' }}
         />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Account" component={AccountScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="SmartWatch" component={SmartWatchScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
