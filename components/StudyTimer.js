@@ -58,7 +58,6 @@ export default function StudyTimer() {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Study Duration</Text>
-      <Text>Pick-ups detected: {pickupCount}</Text>
       <View style={styles.circleShadow}>
         <AnimatedCircularProgress
           size={200}
