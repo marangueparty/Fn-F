@@ -10,7 +10,7 @@ import LoginScreen from './screens/LoginScreen/LoginScreen';
 import ProfileScreen from './screens/ProfileScreen/ProfileScreen';
 import SignUpScreen from './screens/SignUp/SignUpScreen';
 
-// 1️⃣ Tell Expo how to display incoming notifications
+// tell Expo how to display incoming notifications
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert:  true,
