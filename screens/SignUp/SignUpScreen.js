@@ -1,17 +1,17 @@
+// screens/SignUp/SignUpScreen.js
 import React, { useState } from 'react';
 import {
-  Alert, Platform, StyleSheet,
-  Text, TextInput, TouchableOpacity, View
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-
-import {
-  SERVER_HOST_ANDROID,
-  SERVER_HOST_DEVICE,
-  SERVER_HOST_IOS
-} from '@env';
+import { auth } from '../../firebase'; // ← fixed path
 
 export default function SignUpScreen({ navigation }) {
-  const [email,    setEmail]    = useState('');
+  const [email, setEmail]    = useState('');
   const [password, setPassword] = useState('');
 
   const validateEmail = e => /\S+@\S+\.\S+/.test(e);
@@ -20,28 +20,18 @@ export default function SignUpScreen({ navigation }) {
 
   const handleSignUp = async () => {
     if (!email.trim())
-      return Alert.alert('Invalid Input','Please enter your email.');
+      return Alert.alert('Invalid Input', 'Please enter your email.');
     if (!validateEmail(email.trim()))
-      return Alert.alert('Invalid Email','Please enter a valid email.');
+      return Alert.alert('Invalid Email', 'Please enter a valid email.');
     if (!validatePassword(password))
       return Alert.alert(
         'Weak Password',
         '8+ chars including uppercase, lowercase, digit & symbol.'
       );
 
-    const host = Platform.OS === 'android'
-      ? SERVER_HOST_ANDROID
-      : (Platform.OS === 'ios' ? SERVER_HOST_IOS : SERVER_HOST_DEVICE);
-
     try {
-      const res = await fetch(`${host}/auth/signup`, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ email: email.trim(), password })
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error||'Sign up failed');
-
+      await auth.createUserWithEmailAndPassword(email.trim(), password);
+      await auth.currentUser.sendEmailVerification();
       Alert.alert(
         'Verify Your Email',
         'A link has been sent to your inbox. Please check before logging in.'
@@ -75,7 +65,7 @@ export default function SignUpScreen({ navigation }) {
       </TouchableOpacity>
       <View style={styles.footer}>
         <Text style={styles.footerText}>Already have an account?</Text>
-        <TouchableOpacity onPress={()=>navigation.replace('Login')}>
+        <TouchableOpacity onPress={() => navigation.replace('Login')}>
           <Text style={styles.linkText}> Log In</Text>
         </TouchableOpacity>
       </View>

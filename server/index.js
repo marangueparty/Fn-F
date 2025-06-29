@@ -17,6 +17,8 @@ admin.initializeApp({
 const authRouter         = require('./routes/auth');
 const sessionsRouter     = require('./routes/sessions');
 const achievementsRouter = require('./routes/achievementsRoute');
+const friendsRouter     = require('./routes/friends');
+const leaderboardRouter  = require('./routes/leaderboard');
 
 const app = express();
 app.use(cors());
@@ -49,7 +51,8 @@ app.use('/auth', authRouter);
 // protect sessions and achievements with authenticate middleware
 app.use('/sessions', authenticate, sessionsRouter);
 app.use('/achievements', authenticate, achievementsRouter);
-
+app.use('/friends',      authenticate, friendsRouter);
+app.use('/leaderboard',  authenticate, leaderboardRouter);
 // ── 5) start
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🔌 Server listening on http://localhost:${PORT}`));

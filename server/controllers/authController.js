@@ -1,3 +1,5 @@
+// server/controllers/authController.js
+
 const fetch = require('node-fetch');
 const admin = require('firebase-admin');
 
@@ -36,6 +38,7 @@ exports.signup = async (req, res) => {
   }
 
   try {
+    // 1) create the account via Firebase REST API
     const r = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
       {
@@ -48,7 +51,20 @@ exports.signup = async (req, res) => {
     if (data.error) {
       return res.status(400).json({ success:false, error:data.error.message });
     }
+
+    // 2) send verification email
     await admin.auth().generateEmailVerificationLink(email);
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // 3) **NEW**: create /users/{uid} document in Firestore with at least the email
+    //    so that you can later query by email (for add-friend and leaderboard).
+    const userRecord = await admin.auth().getUserByEmail(email);
+    await admin.firestore()
+               .collection('users')
+               .doc(userRecord.uid)
+               .set({ email }, { merge: true });
+    // ────────────────────────────────────────────────────────────────────────────
+
     return res.json({ success:true });
   } catch (err) {
     console.error(err);

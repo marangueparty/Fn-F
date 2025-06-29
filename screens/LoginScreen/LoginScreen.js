@@ -1,3 +1,9 @@
+import {
+  SERVER_HOST_ANDROID,
+  SERVER_HOST_DEVICE,
+  SERVER_HOST_IOS
+} from '@env';
+import * as SecureStore from 'expo-secure-store';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -12,12 +18,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-import {
-  SERVER_HOST_ANDROID,
-  SERVER_HOST_DEVICE,
-  SERVER_HOST_IOS
-} from '@env';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -39,7 +39,6 @@ export default function LoginScreen({ navigation }) {
         'Must be 8+ chars with uppercase, lowercase, digit & symbol.'
       );
 
-    // pick the right host per platform
     const host = Platform.OS === 'android'
       ? SERVER_HOST_ANDROID
       : (Platform.OS === 'ios'
@@ -54,6 +53,10 @@ export default function LoginScreen({ navigation }) {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Login failed');
+
+      // persist the ID token for all future backend requests
+      await SecureStore.setItemAsync('userToken', json.token);
+
       navigation.replace('Home');
     } catch (err) {
       Alert.alert('Login failed', err.message);
