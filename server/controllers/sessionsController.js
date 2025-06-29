@@ -1,5 +1,4 @@
 // server/controllers/sessionsController.js
-
 const sessionsService     = require('../services/sessionsService');
 const achievementsService = require('../services/achievementsService');
 const statsService        = require('../services/statsService');
