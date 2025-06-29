@@ -1,4 +1,7 @@
-import { Text } from 'react-native';
+// screens/HomeScreen/Tabs/AchievementsTab.js
+import React from 'react'
+import AchievementsScreen from '../../AchievementsScreen/Achievements'
+
 export default function AchievementsTab() {
-  return <Text>📘 Achievements Placeholder</Text>;
+  return <AchievementsScreen />
 }
