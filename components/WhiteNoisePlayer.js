@@ -1,6 +1,6 @@
 // components/WhiteNoisePlayer.js
 import { Feather } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, INTERRUPTION_MODE_ANDROID_DO_NOT_MIX, INTERRUPTION_MODE_IOS_DO_NOT_MIX } from 'expo-av';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import WaveformBar from './WaveForm';
@@ -14,10 +14,10 @@ export default function WhiteNoisePlayer() {
     Audio.setAudioModeAsync({
       allowsRecordingIOS:        false,
       staysActiveInBackground:   true,
-      interruptionModeIOS:       Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+      interruptionModeIOS:       INTERRUPTION_MODE_IOS_DO_NOT_MIX,
       playsInSilentModeIOS:      true,
       shouldDuckAndroid:         true,
-      interruptionModeAndroid:   Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+      interruptionModeAndroid:   INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
       playThroughEarpieceAndroid:false,
     });
   }, []);
@@ -79,11 +79,10 @@ export default function WhiteNoisePlayer() {
 
 const styles = StyleSheet.create({
   musicPlayer: {
-    marginTop: 20,
+    marginTop: 0,
     alignItems: 'center',
   },
   musicButton: {
-    marginTop: 12,
     padding: 8,
     borderRadius: 30,
     backgroundColor: '#f2f2f2',

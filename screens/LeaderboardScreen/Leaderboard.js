@@ -1,28 +1,18 @@
 // screens/LeaderboardScreen/LeaderboardScreen.js
 
-import {
-    SERVER_HOST_ANDROID,
-    SERVER_HOST_DEVICE,
-    SERVER_HOST_IOS,
-} from '@env';
 import { useIsFocused } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
-    Platform,
     StyleSheet,
     Text,
-    View,
+    View
 } from 'react-native';
+import { getApiHost } from '../../utils/getApiHost';
   
-  const HOST =
-    Platform.OS === 'android'
-      ? SERVER_HOST_ANDROID
-      : Platform.OS === 'ios'
-      ? SERVER_HOST_IOS
-      : SERVER_HOST_DEVICE;
+  const HOST = getApiHost();
   
   export default function LeaderboardScreen() {
     const isFocused = useIsFocused();          // ← track focus
@@ -69,7 +59,7 @@ import {
           <View style={styles.row}>
             <Text style={styles.rank}>{index + 1}.</Text>
             <View style={styles.info}>
-              <Text style={styles.email}>{item.email}</Text>
+              <Text style={styles.email}>{item.username ? item.username : item.email}</Text>
               <Text style={styles.score}>{item.totalFocus} min</Text>
             </View>
           </View>

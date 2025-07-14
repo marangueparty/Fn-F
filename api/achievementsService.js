@@ -1,19 +1,9 @@
 // api/achievementsService.js
 
-import {
-    SERVER_HOST_ANDROID,
-    SERVER_HOST_DEVICE,
-    SERVER_HOST_IOS,
-} from '@env';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { getApiHost } from '../utils/getApiHost';
 
-const HOST =
-  Platform.OS === 'android'
-    ? SERVER_HOST_ANDROID
-    : Platform.OS === 'ios'
-      ? SERVER_HOST_IOS
-      : SERVER_HOST_DEVICE;
+const HOST = getApiHost();
 
 /**
  * GET /achievements/current

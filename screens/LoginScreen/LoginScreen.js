@@ -1,62 +1,64 @@
-import {
-  SERVER_HOST_ANDROID,
-  SERVER_HOST_DEVICE,
-  SERVER_HOST_IOS
-} from '@env';
 import * as SecureStore from 'expo-secure-store';
 import React, { useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Dimensions,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { getApiHost } from '../../utils/getApiHost';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
-  const [email,    setEmail]    = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
+  const host = getApiHost();
 
   const validateEmail = e => /\S+@\S+\.\S+/.test(e);
   const validatePassword = p =>
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*\W).{8,}$/.test(p);
 
   const handleLogin = async () => {
-    if (!email.trim() || !validateEmail(email))
-      return Alert.alert('Invalid Email','Please enter a valid email.');
-
+    if (!emailOrUsername.trim())
+      return Alert.alert('Invalid Input','Please enter your email or username.');
     if (!validatePassword(password))
       return Alert.alert(
         'Weak Password',
         'Must be 8+ chars with uppercase, lowercase, digit & symbol.'
       );
-
-    const host = Platform.OS === 'android'
-      ? SERVER_HOST_ANDROID
-      : (Platform.OS === 'ios'
-          ? SERVER_HOST_IOS
-          : SERVER_HOST_DEVICE);
-
+    let email = emailOrUsername.trim();
+    if (!validateEmail(emailOrUsername)) {
+      // Not an email, treat as username
+      try {
+        const res = await fetch(`${host}/auth/lookup-email`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ username: emailOrUsername.trim() })
+        });
+        const json = await res.json();
+        if (!json.email) throw new Error(json.error || 'Username not found');
+        email = json.email;
+      } catch (err) {
+        return Alert.alert('Login failed', err.message);
+      }
+    }
     try {
       const res = await fetch(`${host}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ email: email.trim(), password })
+        body: JSON.stringify({ email, password })
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Login failed');
-
-      // persist the ID token for all future backend requests
       await SecureStore.setItemAsync('userToken', json.token);
-
       navigation.replace('Home');
     } catch (err) {
       Alert.alert('Login failed', err.message);
@@ -74,18 +76,14 @@ export default function LoginScreen({ navigation }) {
           style={styles.logo}
           resizeMode="contain"
         />
-
         <Text style={styles.title}>Welcome Back</Text>
-
         <TextInput
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
+          placeholder="Email or Username"
+          value={emailOrUsername}
+          onChangeText={setEmailOrUsername}
           style={styles.input}
-          keyboardType="email-address"
           autoCapitalize="none"
         />
-
         <TextInput
           placeholder="Password"
           secureTextEntry
@@ -93,11 +91,9 @@ export default function LoginScreen({ navigation }) {
           onChangeText={setPassword}
           style={styles.input}
         />
-
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Log In</Text>
         </TouchableOpacity>
-
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don’t have an account?</Text>
           <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>

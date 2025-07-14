@@ -1,37 +1,28 @@
 // components/FocusProgress.js
 
-import {
-  SERVER_HOST_ANDROID,
-  SERVER_HOST_DEVICE,
-  SERVER_HOST_IOS,
-} from '@env';
 import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store'; // ← add this import
 import moment from 'moment';
 import React, { useCallback, useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
+    Alert,
+    Dimensions,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
+import { getApiHost } from '../../utils/getApiHost';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CHART_WIDTH  = SCREEN_W - 32;
 const CHART_HEIGHT = SCREEN_H * 0.3;
 
-const HOST =
-  Platform.OS === 'android'
-    ? SERVER_HOST_ANDROID
-    : Platform.OS === 'ios'
-      ? SERVER_HOST_IOS
-      : SERVER_HOST_DEVICE;
+const HOST = getApiHost();
 
 export default function FocusProgress() {
   const [weeklyFocus, setWeeklyFocus] = useState(Array(7).fill(0));

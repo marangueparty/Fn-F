@@ -1,33 +1,24 @@
 // screens/AchievementsScreen/AchievementsScreen.js
 
-import {
-  SERVER_HOST_ANDROID,
-  SERVER_HOST_DEVICE,
-  SERVER_HOST_IOS,
-} from '@env';
 import { useIsFocused } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
-  Dimensions,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
+    Dimensions,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { getApiHost } from '../../utils/getApiHost';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CIRCLE_SIZE = 40;
 
-const HOST =
-  Platform.OS === 'android'
-    ? SERVER_HOST_ANDROID
-    : Platform.OS === 'ios'
-    ? SERVER_HOST_IOS
-    : SERVER_HOST_DEVICE;
+const HOST = getApiHost();
 
 const ACH_LIST = [
   { id: 'first_session', title: 'First Steps',    desc: 'Complete your first study session',      icon: 'flag-checkered' },
@@ -191,4 +182,4 @@ const styles = StyleSheet.create({
   title:            { fontSize:16, fontWeight:'500', textAlign:'center' },
   desc:             { fontSize:12, textAlign:'center', marginTop:4, color:'#666' },
   lockedText:       { color:'#AAA' },
-});
+}); 

@@ -14,9 +14,18 @@ exports.getLeaderboard = async (req, res, next) => {
     const entries = await Promise.all(
       allUids.map(async uid => {
         const stats = await calculateStats(uid);
+        // Fetch user doc from Firestore for username
+        let username = '';
+        try {
+          const userDoc = await admin.firestore().collection('users').doc(uid).get();
+          username = userDoc.exists ? (userDoc.data().username || '') : '';
+        } catch (e) {
+          console.warn('Could not fetch username for leaderboard:', uid, e);
+        }
         const user = await admin.auth().getUser(uid);
         return {
           uid,
+          username,
           email: user.email,
           totalFocus: stats.totalFocus,
         };
@@ -24,6 +33,7 @@ exports.getLeaderboard = async (req, res, next) => {
     );
     // sort descending by totalFocus
     entries.sort((a, b) => b.totalFocus - a.totalFocus);
+    console.log('Leaderboard entries:', entries);
     res.json({ success: true, leaderboard: entries });
   } catch (err) {
     console.error('getLeaderboard error', err);

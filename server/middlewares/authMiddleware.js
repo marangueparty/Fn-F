@@ -1,7 +1,7 @@
-import admin from "firebase-admin";
+const admin = require('firebase-admin');
 
 // Verifies the Firebase ID token in “Authorization: Bearer <token>”
-export async function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   try {
     const header = req.headers.authorization || "";
     const match  = header.match(/^Bearer (.+)$/);
@@ -15,3 +15,5 @@ export async function authenticate(req, res, next) {
     res.status(401).json({ error: "Invalid auth token" });
   }
 }
+
+module.exports = { authenticate };
