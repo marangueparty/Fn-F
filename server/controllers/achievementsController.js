@@ -12,7 +12,8 @@ const {
  */
 exports.getCurrent = async (req, res) => {
   try {
-    const uid = req.user.id;
+    // pull the Firebase UID off of req.user
+    const { uid } = req.user;
 
     // 1) compute stats (levels, penalties, etc)
     const stats = await calculateStats(uid);
@@ -23,7 +24,7 @@ exports.getCurrent = async (req, res) => {
     // respond with both
     return res.json({
       success:      true,
-      stats,                 // { totalFocus, currentLevel, … }
+      stats,                    // { totalFocus, currentLevel, … }
       achievements: unlockedBadges,  // e.g. [ { id: 'first_session' }, … ]
     });
   } catch (err) {
@@ -40,13 +41,14 @@ exports.getCurrent = async (req, res) => {
  */
 exports.postCurrent = async (req, res) => {
   try {
-    const uid = req.user.id;
+    // pull the Firebase UID off of req.user
+    const { uid } = req.user;
     const { focusCollected, sessions, penalties } = req.body;
 
     // Overwrite raw totals:
     await updateRawTotals(uid, {
-      totalFocus:    focusCollected,
-      totalSessions: sessions,
+      totalFocus:     focusCollected,
+      totalSessions:  sessions,
       totalPenalties: penalties,
     });
 

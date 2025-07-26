@@ -1,6 +1,5 @@
 const admin = require('firebase-admin');
 const fetch = require('node-fetch');
-
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 
 function createUser(email, password) {
@@ -21,4 +20,18 @@ async function loginWithEmail(email, password) {
   return data.idToken;
 }
 
-module.exports = { createUser, loginWithEmail };
+// ——— NEW export ———
+/**
+ * Generate & dispatch a Firebase password-reset link.
+ * Throws `auth/user-not-found` if no such user.
+ */
+async function sendPasswordReset(email) {
+  // This will throw if the email is not in your Firebase Auth user list
+  return admin.auth().generatePasswordResetLink(email);
+}
+
+module.exports = {
+  createUser,
+  loginWithEmail,
+  sendPasswordReset,   // ← newly added
+};

@@ -5,7 +5,11 @@ const { calculateStats } = require('../services/statsService');
 
 exports.getLeaderboard = async (req, res, next) => {
   try {
-    const me = req.user.id;
+    // pull the Firebase UID off of req.user
+    const { uid } = req.user;
+    console.log('→ getLeaderboard called by UID:', uid);
+    const me = uid;
+
     // fetch your friends' UIDs
     const friends = await listFriends(me);
     // include yourself
@@ -17,7 +21,11 @@ exports.getLeaderboard = async (req, res, next) => {
         // Fetch user doc from Firestore for username
         let username = '';
         try {
-          const userDoc = await admin.firestore().collection('users').doc(uid).get();
+          const userDoc = await admin
+            .firestore()
+            .collection('users')
+            .doc(uid)
+            .get();
           username = userDoc.exists ? (userDoc.data().username || '') : '';
         } catch (e) {
           console.warn('Could not fetch username for leaderboard:', uid, e);

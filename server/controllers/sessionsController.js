@@ -37,7 +37,8 @@ exports.listSessions = async (_req, res) => {
 // POST /sessions/complete → log session, update achievements, return fresh stats & badges
 exports.completeSession = async (req, res) => {
   try {
-    const uid = req.user.id;
+    const { uid } = req.user; 
+    console.log('→ completeSession request', { uid, body: req.body });
     const {
       studyDuration,
       breakDuration,

@@ -19,6 +19,7 @@ const sessionsRouter     = require('./routes/sessions');
 const achievementsRouter = require('./routes/achievementsRoute');
 const friendsRouter     = require('./routes/friends');
 const leaderboardRouter  = require('./routes/leaderboard');
+const settingsRouter     = require('./routes/settings');
 
 const app = express();
 app.use(cors());
@@ -35,7 +36,7 @@ async function authenticate(req, res, next) {
   try {
     const decoded = await admin.auth().verifyIdToken(idToken);
     // attach the Firebase UID to req.user.id
-    req.user = { id: decoded.uid };
+    req.user = { uid: decoded.uid };
     next();
   } catch (err) {
     console.error('Error verifying Firebase ID token:', err);
@@ -53,6 +54,7 @@ app.use('/sessions', authenticate, sessionsRouter);
 app.use('/achievements', authenticate, achievementsRouter);
 app.use('/friends',      authenticate, friendsRouter);
 app.use('/leaderboard',  authenticate, leaderboardRouter);
+app.use('/settings',     authenticate, settingsRouter);
 // ── 5) start
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🔌 Server listening on http://localhost:${PORT}`));

@@ -39,7 +39,6 @@ exports.checkUsername = async (req, res) => {
     const snap = await admin.firestore().collection('usernames').doc(username).get();
     if (!snap.exists) return res.json({ available: true });
     const data = snap.data();
-    // If the username belongs to the current user, allow it
     if (uid && data.uid === uid) return res.json({ available: true });
     return res.json({ available: false });
   } catch (err) {
@@ -68,7 +67,6 @@ exports.lookupEmail = async (req, res) => {
 exports.updateUsername = async (req, res) => {
   const { newUsername } = req.body;
   const uid = req.user && (req.user.id || req.user.uid);
-  console.log('updateUsername called with:', { newUsername, uid, user: req.user });
   if (!uid) {
     return res.status(400).json({ success: false, error: 'Missing or invalid user ID (uid)' });
   }
@@ -77,33 +75,25 @@ exports.updateUsername = async (req, res) => {
   }
   const trimmed = newUsername.trim();
   try {
-    // Get current user doc
     const userRef = admin.firestore().collection('users').doc(uid);
     let userDoc = await userRef.get();
     let userData = userDoc.data() || {};
-    // Auto-populate if missing or empty
     if (!userDoc.exists || !userData.email) {
       userData.email = req.user.email || '';
       await userRef.set({ email: userData.email }, { merge: true });
       userDoc = await userRef.get();
       userData = userDoc.data() || {};
-      console.log('Auto-populated user doc for', uid);
     }
     const oldUsername = userData.username;
-    // If the new username is the same as the current one, treat as no-op
     if (oldUsername === trimmed) {
       return res.json({ success: true });
     }
-    // Check if new username is available (or belongs to this user)
     const usernameSnap = await admin.firestore().collection('usernames').doc(trimmed).get();
     if (usernameSnap.exists && usernameSnap.data().uid !== uid) {
       return res.status(400).json({ success: false, error: 'Username already taken' });
     }
-    // Update user doc with new username
     await userRef.set({ username: trimmed }, { merge: true });
-    // Create new username mapping
     await admin.firestore().collection('usernames').doc(trimmed).set({ uid });
-    // Delete old username mapping
     if (oldUsername && oldUsername !== trimmed) {
       await admin.firestore().collection('usernames').doc(oldUsername).delete();
     }
@@ -122,13 +112,11 @@ exports.signup = async (req, res) => {
   if (!username) {
     return res.status(400).json({ success:false, error:'Username required' });
   }
-  // Check username uniqueness
   const usernameSnap = await admin.firestore().collection('usernames').doc(username).get();
   if (usernameSnap.exists) {
     return res.status(400).json({ success:false, error:'Username already taken' });
   }
   try {
-    // 1) create the account via Firebase REST API
     const r = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
       {
@@ -141,15 +129,12 @@ exports.signup = async (req, res) => {
     if (data.error) {
       return res.status(400).json({ success:false, error:data.error.message });
     }
-    // 2) send verification email
     await admin.auth().generateEmailVerificationLink(email);
-    // 3) create /users/{uid} document in Firestore with email and username
     const userRecord = await admin.auth().getUserByEmail(email);
     await admin.firestore()
                .collection('users')
                .doc(userRecord.uid)
                .set({ email, username }, { merge: true });
-    // 4) create /usernames/{username} mapping
     await admin.firestore().collection('usernames').doc(username).set({ uid: userRecord.uid });
     return res.json({ success:true });
   } catch (err) {
@@ -160,24 +145,37 @@ exports.signup = async (req, res) => {
 
 exports.getProfile = async (req, res) => {
   const uid = req.user && (req.user.id || req.user.uid);
-  console.log('getProfile called with:', { uid, user: req.user });
   try {
     const userRef = admin.firestore().collection('users').doc(uid);
     let userDoc = await userRef.get();
     let userData = userDoc.data() || {};
-    // Auto-populate if missing or empty
     if (!userDoc.exists || !userData.email) {
       userData.email = req.user.email || '';
       await userRef.set({ email: userData.email }, { merge: true });
       userDoc = await userRef.get();
       userData = userDoc.data() || {};
-      console.log('Auto-populated user doc for', uid);
     }
     const profile = { email: userData.email || '', username: userData.username || '' };
-    console.log('Returning profile:', profile);
     return res.json(profile);
   } catch (err) {
     console.error('getProfile error', err);
     return res.status(500).json({ error: err.message });
+  }
+};
+
+// ——— NEW: handle forgot-password ———
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Missing email' });
+  }
+  try {
+    // Will throw if user not found
+    await admin.auth().generatePasswordResetLink(email);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('forgotPassword error', err);
+    const status = err.code === 'auth/user-not-found' ? 404 : 500;
+    return res.status(status).json({ success: false, error: err.message });
   }
 };
