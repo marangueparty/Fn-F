@@ -5,10 +5,10 @@ import {
   SERVER_HOST_DEVICE,
   SERVER_HOST_IOS,
 } from '@env';
-import { useFocusEffect } from '@react-navigation/native';
-import * as SecureStore from 'expo-secure-store'; // ← add this import
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import * as SecureStore from 'expo-secure-store';
 import moment from 'moment';
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -17,14 +17,13 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  View,
+  Text, TouchableOpacity, View
 } from 'react-native';
-import { BarChart } from 'react-native-chart-kit';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const CHART_WIDTH  = SCREEN_W - 32;
-const CHART_HEIGHT = SCREEN_H * 0.3;
+const { width: SCREEN_W } = Dimensions.get('window');
+const BAR_WIDTH = (SCREEN_W - 64) / 7; // 7 bars with spacing
+const MAX_BAR_HEIGHT = 150;
+
 
 const HOST =
   Platform.OS === 'android'
@@ -36,22 +35,32 @@ const HOST =
 export default function FocusProgress() {
   const [weeklyFocus, setWeeklyFocus] = useState(Array(7).fill(0));
   const [weeklyBreak, setWeeklyBreak] = useState(Array(7).fill(0));
+  const [userGoal, setUserGoal] = useState(120);
+  const [loading, setLoading] = useState(true);
+  const navigation = useNavigation();
 
   const fetchSessions = useCallback(async () => {
     try {
-      // 1) retrieve the stored token
       const token = await SecureStore.getItemAsync('userToken');
+      const [sessionsResp, goalResp] = await Promise.all([
+        fetch(`${HOST}/sessions`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch(`${HOST}/focus-goal`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      // 2) include it in your GET /sessions call
-      const resp = await fetch(`${HOST}/sessions`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      if (!sessionsResp.ok) throw new Error(`Sessions HTTP ${sessionsResp.status}`);
+      if (!goalResp.ok) throw new Error(`Goal HTTP ${goalResp.status}`);
 
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const sessions = await resp.json();
+      const sessions = await sessionsResp.json();
+      const goalData = await goalResp.json();
+
+      if (goalData.success && goalData.goalMinutes) setUserGoal(goalData.goalMinutes);
 
       const focusMap = {};
       const breakMap = {};
@@ -70,23 +79,37 @@ export default function FocusProgress() {
       const last7 = [...Array(7)].map((_, i) =>
         moment().subtract(6 - i, 'days').format('dddd')
       );
+
       setWeeklyFocus(last7.map(d => focusMap[d] || 0));
       setWeeklyBreak(last7.map(d => breakMap[d] || 0));
+      setLoading(false);
     } catch (e) {
-      console.warn('Error loading sessions:', e);
-      Alert.alert('Error', 'Could not load your sessions.');
+      console.warn('Error loading sessions or goal:', e);
+      Alert.alert('Error', 'Could not load your sessions or goal.');
+      setLoading(false);
     }
   }, [HOST]);
 
   useFocusEffect(
-    useCallback(() => {
-      fetchSessions();
-    }, [fetchSessions])
-  );
+  useCallback(() => {
+    async function fetchData() {
+      await fetchSessions();
+    }
+    fetchData();
+  }, [fetchSessions])
+);
+
+  if (loading) return <Text style={{ padding: 20, textAlign: 'center' }}>Loading...</Text>;
 
   const totalFocus = weeklyFocus.reduce((a, b) => a + b, 0);
   const totalBreak = weeklyBreak.reduce((a, b) => a + b, 0);
-  const maxFocus   = Math.max(...weeklyFocus, 1);
+
+  // 1) map colors based on goal achievement
+  const barColors = weeklyFocus.map(minutes => {
+    if (minutes >= userGoal) return '#2ecc71'; // green
+    if (minutes >= userGoal * 0.75) return '#f1c40f'; // yellow
+    return '#e74c3c'; // red
+  });
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -96,28 +119,46 @@ export default function FocusProgress() {
           <Text style={styles.summaryValue}>{totalFocus} min</Text>
           <Text style={[styles.summaryTitle, { marginTop: 12 }]}>Breaks</Text>
           <Text style={styles.summaryValue}>{totalBreak} min</Text>
+          <Text style={[styles.summaryTitle, { marginTop: 20 }]}>
+            Daily Focus Goal: {userGoal} min
+          </Text>
+        </View>
+        <TouchableOpacity
+        onPress={() => navigation.navigate('FocusGoal')}
+        style={styles.button}
+        >
+          <Text style={styles.buttonText}>Set Focus Goal</Text>
+          </TouchableOpacity>
+
+
+        {/* Custom colored bar chart */}
+        <View style={styles.chartContainer}>
+          {weeklyFocus.map((minutes, i) => {
+            const barHeight = Math.min((minutes / (userGoal || 1)) * MAX_BAR_HEIGHT, MAX_BAR_HEIGHT);
+            return (
+            <View key={i} style={styles.barGroup}>
+              <View style={[styles.bar, { height: barHeight, backgroundColor: barColors[i] }]} />
+              <Text style={styles.barLabel}>{minutes}</Text>
+              <Text style={styles.barDay}>{moment().subtract(6 - i, 'days').format('ddd')}</Text>
+              </View>
+              );
+              })}
         </View>
 
-        <BarChart
-          data={{
-            labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
-            datasets: [{ data: weeklyFocus }],
-          }}
-          width={CHART_WIDTH}
-          height={CHART_HEIGHT}
-          fromZero
-          segments={maxFocus}
-          chartConfig={{
-            backgroundGradientFrom: '#fff',
-            backgroundGradientTo:   '#fff',
-            decimalPlaces:          0,
-            color:        (opacity=1) => `rgba(155,93,229,${opacity})`,
-            labelColor:   () => '#333',
-            formatYLabel: label =>
-              (label === '0' || label === String(maxFocus)) ? label : '',
-          }}
-          style={styles.chart}
-        />
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: '#2ecc71' }]} />
+            <Text>Goal Met</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: '#f1c40f' }]} />
+            <Text>Close to Goal</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: '#e74c3c' }]} />
+            <Text>Below Goal</Text>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -127,37 +168,83 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: '#fff',
-    paddingTop: Platform.OS === 'android'
-      ? StatusBar.currentHeight + 10
-      : 10,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 10,
   },
   container: {
-    alignItems:    'center',
-    paddingTop:    80,
+    alignItems: 'center',
+    paddingTop: 40,
     paddingBottom: 20,
   },
   summaryCard: {
-    width:           SCREEN_W * 0.9,
+    width: SCREEN_W * 0.9,
     backgroundColor: '#d3b5f9',
-    borderRadius:    8,
-    padding:         16,
-    alignItems:      'center',
-    marginBottom:    24,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 24,
   },
   summaryTitle: {
-    fontSize:   16,
+    fontSize: 16,
     fontWeight: '600',
-    color:      '#333',
+    color: '#333',
   },
   summaryValue: {
-    fontSize:   24,
+    fontSize: 24,
     fontWeight: '700',
-    marginTop:  4,
-    color:      '#000',
+    marginTop: 4,
+    color: '#000',
   },
-  chart: {
-    marginVertical: 20,
-    borderRadius:   8,
-    transform:      [{ translateX: -SCREEN_W * 0.05 }],
+  chartContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: SCREEN_W * 0.9,
+    height: 180,
+    alignItems: 'flex-end',
+  },
+  barGroup: {
+    alignItems: 'center',
+    width: BAR_WIDTH,
+  },
+  bar: {
+    width: BAR_WIDTH * 0.6,
+    borderRadius: 4,
+  },
+  barLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  barDay: {
+    fontSize: 10,
+    color: '#666',
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: SCREEN_W * 0.9,
+    marginTop: 30,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendColor: {
+    width: 20,
+    height: 20,
+    marginRight: 6,
+    borderRadius: 4,
+  },
+  button: {
+    backgroundColor: '#5e17eb',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginBottom: 24,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });

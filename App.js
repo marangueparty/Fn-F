@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 
+import FocusGoalScreen from './screens/FocusProgressScreen/FocusGoalScreen';
 import BreakScreen from './screens/HomeScreen/BreakScreen/BreakScreen';
 import HomeScreen from './screens/HomeScreen/HomeScreen';
 import LoginScreen from './screens/LoginScreen/LoginScreen';
@@ -75,6 +76,10 @@ export default function App() {
           name="Profile"
           component={ProfileScreen}
           options={{ title: 'Settings' }}
+        />
+        <Stack.Screen 
+          name="FocusGoal" 
+          component={FocusGoalScreen} 
         />
       </Stack.Navigator>
     </NavigationContainer>
