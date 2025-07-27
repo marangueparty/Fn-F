@@ -1,79 +1,78 @@
 // __tests__/services/achievementsService.test.js
-jest.mock('firebase-admin');
-
-
-jest.mock('firebase-admin', () => {
-  const setMock = jest.fn();
-  const getMock = jest.fn();
-  const docMock = jest.fn(() => ({
-    set: setMock,
-    get: getMock,
-  }));
-  const collectionMock = jest.fn(() => ({
-    doc: docMock,
-  }));
-  const firestoreMock = jest.fn(() => ({
-    collection: collectionMock,
-  }));
-
-  return {
-    firestore: firestoreMock,
-    firestoreFieldValue: {
-      increment: jest.fn((val) => val),
-    },
-    firestoreFieldValue: {
-      increment: jest.fn((val) => val),
-    },
-    firestore: {
-      FieldValue: {
-        increment: jest.fn((val) => val),
-      }
-    }
-  };
-});
-
+// __tests__/services/achievementsService.test.js
 const admin = require('firebase-admin');
+jest.mock('firebase-admin');
 const statsService = require('../../server/services/statsService');
+jest.mock('../../server/services/statsService');
+
 const achievementsService = require('../../server/services/achievementsService');
 
 describe('achievementsService', () => {
+  let setMock, getMock, docMock, collectionMock;
+
   beforeEach(() => {
     jest.clearAllMocks();
+
+    setMock = jest.fn().mockResolvedValue();
+    getMock = jest.fn();
+
+    docMock = jest.fn(() => ({
+      set: setMock,
+      get: getMock,
+    }));
+
+    collectionMock = jest.fn(() => ({
+      doc: docMock,
+    }));
+
+    const firestoreMock = jest.fn(() => ({
+      collection: collectionMock,
+    }));
+
+    admin.firestore.mockReturnValue(firestoreMock);
+
+    // Mock FieldValue helpers
+    admin.firestore.FieldValue = {
+      increment: jest.fn((val) => val),
+    };
   });
 
-  describe('updateRawTotals', () => {
-    it('calls firestore set with increments and merge true', async () => {
-      const setMock = jest.fn();
-      const docMock = jest.fn(() => ({ set: setMock }));
-      const collectionMock = jest.fn(() => ({ doc: docMock }));
-      admin.firestore.mockReturnValue({ collection: collectionMock });
+  //updateRawTotals endpoint
 
-      await achievementsService.updateRawTotals('user123', {
-        focusIncrement: 10,
-        sessionIncrement: 1,
-        penaltyIncrement: 2,
-      });
+  describe('updateRawTotals', () => {
+    it('happy path: calls set with increments and merge:true', async () => {
+      const uid = 'user123';
+      const increments = { focusIncrement: 5, sessionIncrement: 3, penaltyIncrement: 1 };
+
+      await achievementsService.updateRawTotals(uid, increments);
 
       expect(admin.firestore).toHaveBeenCalled();
       expect(collectionMock).toHaveBeenCalledWith('users');
-      expect(docMock).toHaveBeenCalledWith('user123');
+      expect(docMock).toHaveBeenCalledWith(uid);
+      expect(collectionMock).toHaveBeenCalledWith('achievements');
+      expect(docMock).toHaveBeenCalledWith('raw');
+
       expect(setMock).toHaveBeenCalledWith({
-        totalFocus: 10,
-        totalSessions: 1,
-        totalPenalties: 2,
+        totalFocus: increments.focusIncrement,
+        totalSessions: increments.sessionIncrement,
+        totalPenalties: increments.penaltyIncrement,
       }, { merge: true });
+
+      expect(admin.firestore.FieldValue.increment).toHaveBeenCalledTimes(3);
+      expect(admin.firestore.FieldValue.increment).toHaveBeenCalledWith(increments.focusIncrement);
+      expect(admin.firestore.FieldValue.increment).toHaveBeenCalledWith(increments.sessionIncrement);
+      expect(admin.firestore.FieldValue.increment).toHaveBeenCalledWith(increments.penaltyIncrement);
     });
   });
 
-  describe('listUnlocked', () => {
-    it('returns unlocked badges based on raw data and streak', async () => {
-      const getMock = jest.fn();
-      const docMock = jest.fn(() => ({ get: getMock }));
-      const collectionMock = jest.fn(() => ({ doc: docMock }));
-      admin.firestore.mockReturnValue({ collection: collectionMock });
+  //listUnlocked endpoint
 
-      // Mock raw data returned by get()
-      getMock.mockResolvedValueOnce({
+  describe('listUnlocked', () => {
+    it('happy path: returns badges unlocked based on raw totals and streak', async () => {
+      const uid = 'user123';
+
+      // Mock get() to return raw totals
+      getMock.mockResolvedValue({
         exists: true,
         data: () => ({
           totalFocus: 700,
@@ -82,17 +81,19 @@ describe('achievementsService', () => {
         }),
       });
 
-      // Mock statsService.hasNdayStreak
-      jest.spyOn(statsService, 'hasNdayStreak').mockResolvedValue(true);
+      // Mock streak function to true
+      statsService.hasNdayStreak.mockResolvedValue(true);
 
-      const unlocked = await achievementsService.listUnlocked('user123');
+      const unlocked = await achievementsService.listUnlocked(uid);
 
       expect(admin.firestore).toHaveBeenCalled();
       expect(collectionMock).toHaveBeenCalledWith('users');
-      expect(docMock).toHaveBeenCalledWith('user123');
+      expect(docMock).toHaveBeenCalledWith(uid);
+      expect(collectionMock).toHaveBeenCalledWith('achievements');
+      expect(docMock).toHaveBeenCalledWith('raw');
       expect(getMock).toHaveBeenCalled();
 
-      expect(statsService.hasNdayStreak).toHaveBeenCalledWith('user123', 3);
+      expect(statsService.hasNdayStreak).toHaveBeenCalledWith(uid, 3);
 
       expect(unlocked).toEqual([
         { id: 'first_session' },
@@ -101,17 +102,14 @@ describe('achievementsService', () => {
       ]);
     });
 
-    it('returns empty badges if no data and no streak', async () => {
-      const getMock = jest.fn();
-      const docMock = jest.fn(() => ({ get: getMock }));
-      const collectionMock = jest.fn(() => ({ doc: docMock }));
-      admin.firestore.mockReturnValue({ collection: collectionMock });
+    it('edge case: returns empty badges if no raw totals exist and no streak', async () => {
+      const uid = 'user123';
 
-      getMock.mockResolvedValueOnce({ exists: false });
+      getMock.mockResolvedValue({ exists: false });
 
-      jest.spyOn(statsService, 'hasNdayStreak').mockResolvedValue(false);
+      statsService.hasNdayStreak.mockResolvedValue(false);
 
-      const unlocked = await achievementsService.listUnlocked('user123');
+      const unlocked = await achievementsService.listUnlocked(uid);
 
       expect(unlocked).toEqual([]);
     });

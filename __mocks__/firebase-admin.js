@@ -4,14 +4,17 @@ const getMock = jest.fn();
 const docMock = jest.fn(() => ({
   set: setMock,
   get: getMock,
-  collection: jest.fn(() => ({ doc: docMock, get: getMock })),
+  collection: jest.fn(() => collectionMock()),
 }));
 
-const collectionMock = jest.fn(() => ({ doc: docMock, get: getMock }));
+const collectionMock = jest.fn(() => ({
+  doc: docMock,
+  get: getMock,
+}));
+
 
 const firestoreMock = jest.fn(() => ({
   collection: collectionMock,
-  doc: docMock,
 }));
 
 const FieldValue = {

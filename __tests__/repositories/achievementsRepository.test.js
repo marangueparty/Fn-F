@@ -1,62 +1,116 @@
 // __tests__/repositories/achievementsRepository.test.js
 const admin = require('firebase-admin');
+jest.mock('firebase-admin');
+
 const {
+  getAllUsers,
   getUserAchievements,
   saveUserAchievement,
-} = require('../../server/repositories/achievementsRepository'); 
+} = require('../../server/repositories/achievementsRepository');
 
 describe('achievementsRepository', () => {
-  let firestoreMock, collectionMock, docMock, getMock, setMock;
+  let collectionMock;
+  let docMock;
+  let getMock;
+  let setMock;
 
   beforeEach(() => {
-    firestoreMock = admin.firestore();
-    setMock = jest.fn();
+    jest.clearAllMocks();
+
+    setMock = jest.fn().mockResolvedValue();
     getMock = jest.fn();
 
-    // 1. set up chain of collection/doc calls
-    firestoreMock.collection = jest.fn(() => ({
-      doc: jest.fn(() => ({
-        collection: jest.fn(() => ({
-          get: getMock,
-          doc: jest.fn(() => ({ set: setMock })),
-        })),
+    docMock = jest.fn(() => ({
+      collection: jest.fn(() => ({
+        get: getMock,
       })),
+      get: getMock,
+      set: setMock,
     }));
 
-    // 2. mocking get() to return dummy docs for getUserAchievements
-    getMock.mockResolvedValue({
-      docs: [
-        { id: 'achv1', data: () => ({ name: 'Badge One', description: 'desc1' }) },
-        { id: 'achv2', data: () => ({ name: 'Badge Two', description: 'desc2' }) },
-      ],
-    });
+    collectionMock = jest.fn(() => ({
+      doc: docMock,
+      get: getMock,
+    }));
 
-    // 3. mocking set() to resolve for saveUserAchievement
-    setMock.mockResolvedValue(undefined);
+    const firestoreMock = {
+      collection: collectionMock,
+      FieldValue: {
+        serverTimestamp: jest.fn(() => 'mock-timestamp'),
+      },
+    };
+
+    admin.firestore.mockReturnValue(firestoreMock);
+    admin.firestore.FieldValue = firestoreMock.FieldValue;
   });
 
-  it('getUserAchievements returns achievements list', async () => {
-    const achievements = await getUserAchievements('user123');
+  describe('getAllUsers', () => {
+    it('happy path: fetches all users correctly', async () => {
+      getMock.mockResolvedValue({
+        docs: [
+          { id: 'user1', data: () => ({ name: 'User One' }) },
+          { id: 'user2', data: () => ({ name: 'User Two' }) },
+        ],
+      });
 
-    expect(firestoreMock.collection).toHaveBeenCalledWith('users');
-    expect(achievements).toEqual([
-      { id: 'achv1', name: 'Badge One', description: 'desc1' },
-      { id: 'achv2', name: 'Badge Two', description: 'desc2' },
-    ]);
+      const users = await getAllUsers();
+
+      expect(admin.firestore).toHaveBeenCalled();
+      expect(collectionMock).toHaveBeenCalledWith('users');
+      expect(getMock).toHaveBeenCalled();
+
+      expect(users).toEqual([
+        { id: 'user1', name: 'User One' },
+        { id: 'user2', name: 'User Two' },
+      ]);
+    });
   });
 
-  it('saveUserAchievement writes achievement with timestamp', async () => {
-    await saveUserAchievement('user123', {
-      id: 'achv1',
-      name: 'Badge One',
-      description: 'desc 1',
-    });
+  describe('getUserAchievements', () => {
+    it('happy path: fetches achievements for a user', async () => {
+      // Mock get for achievements subcollection
+      getMock.mockResolvedValue({
+        docs: [
+          { id: 'achv1', data: () => ({ name: 'Badge 1', description: 'desc1' }) },
+          { id: 'achv2', data: () => ({ name: 'Badge 2', description: 'desc2' }) },
+        ],
+      });
 
-    expect(firestoreMock.collection).toHaveBeenCalledWith('users');
-    expect(setMock).toHaveBeenCalledWith({
-      name: 'Badge One',
-      description: 'desc 1',
-      unlockedAt: 'mocked-timestamp',
+      const achievements = await getUserAchievements('user1');
+
+      expect(admin.firestore).toHaveBeenCalled();
+      expect(collectionMock).toHaveBeenCalledWith('users');
+      expect(docMock).toHaveBeenCalledWith('user1');
+      // The achievements collection should be accessed inside the doc mock, so no direct expect here
+      expect(getMock).toHaveBeenCalled();
+
+      expect(achievements).toEqual([
+        { id: 'achv1', name: 'Badge 1', description: 'desc1' },
+        { id: 'achv2', name: 'Badge 2', description: 'desc2' },
+      ]);
+    });
+  });
+
+  describe('saveUserAchievement', () => {
+    it('happy path: saves achievement with server timestamp', async () => {
+      const achievement = {
+        id: 'achv1',
+        name: 'Badge 1',
+        description: 'desc1',
+      };
+
+      await saveUserAchievement('user1', achievement);
+
+      expect(admin.firestore).toHaveBeenCalled();
+      expect(collectionMock).toHaveBeenCalledWith('users');
+      expect(docMock).toHaveBeenCalledWith('user1');
+      // doc called again for the achievement ID
+      expect(docMock).toHaveBeenCalledWith('achv1');
+      expect(setMock).toHaveBeenCalledWith({
+        name: 'Badge 1',
+        description: 'desc1',
+        unlockedAt: 'mock-timestamp',
+      });
     });
   });
 });

@@ -61,8 +61,10 @@ describe('settingsController', () => {
     };
   });
 
+  //getGoals endpoint
+
   describe('getGoals', () => {
-    it('returns goals from Firestore', async () => {
+    it('happy path: returns goals from Firestore', async () => {
       getMock.mockResolvedValue({
         exists: true,
         data: () => ({ dailyHours: 3 }),
@@ -77,7 +79,7 @@ describe('settingsController', () => {
       });
     });
 
-    it('returns default goals if no doc exists', async () => {
+    it('edge case: returns default goals if no doc exists', async () => {
       getMock.mockResolvedValue({
         exists: false,
       });
@@ -90,7 +92,7 @@ describe('settingsController', () => {
       });
     });
 
-    it('handles Firestore error with 500', async () => {
+    it('error case: handles Firestore error with 500', async () => {
       getMock.mockRejectedValue(new Error('Firestore failure'));
 
       await settingsController.getGoals(req, res);
@@ -103,8 +105,10 @@ describe('settingsController', () => {
     });
   });
 
+  //updateGoals endpoint
+
   describe('updateGoals', () => {
-    it('updates dailyHours successfully', async () => {
+    it('happy path: updates dailyHours successfully', async () => {
       req.body = { dailyHours: 5 };
       setMock.mockResolvedValue();
 
@@ -114,7 +118,7 @@ describe('settingsController', () => {
       expect(res.json).toHaveBeenCalledWith({ success: true });
     });
 
-    it('returns 400 for invalid dailyHours (negative)', async () => {
+    it('edge case: returns 400 for invalid dailyHours (negative)', async () => {
       req.body = { dailyHours: -1 };
 
       await settingsController.updateGoals(req, res);
@@ -126,7 +130,7 @@ describe('settingsController', () => {
       });
     });
 
-    it('returns 400 for invalid dailyHours (over 24)', async () => {
+    it('edge case: returns 400 for invalid dailyHours (over 24)', async () => {
       req.body = { dailyHours: 25 };
 
       await settingsController.updateGoals(req, res);
@@ -138,7 +142,7 @@ describe('settingsController', () => {
       });
     });
 
-    it('returns 400 for invalid dailyHours (not a number)', async () => {
+    it('edge case: returns 400 for invalid dailyHours (not a number)', async () => {
       req.body = { dailyHours: 'abc' };
 
       await settingsController.updateGoals(req, res);
@@ -150,7 +154,7 @@ describe('settingsController', () => {
       });
     });
 
-    it('handles Firestore error with 500', async () => {
+    it('error case: handles Firestore error with 500', async () => {
       req.body = { dailyHours: 4 };
       setMock.mockRejectedValue(new Error('Firestore failure'));
 

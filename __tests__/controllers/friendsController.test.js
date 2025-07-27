@@ -24,6 +24,8 @@ describe('friendsController', () => {
     next = jest.fn();
   });
 
+  //postFriend endpoint
+
   describe('postFriend', () => {
     test('happy path: returns friendUid on success', async () => {
       req.body.email = 'friend@example.com';
@@ -57,6 +59,8 @@ describe('friendsController', () => {
       expect(res.status).not.toHaveBeenCalled();
     });
   });
+
+  //getFriends endpoint
 
   describe('getFriends', () => {
     test('happy path: returns friends list', async () => {

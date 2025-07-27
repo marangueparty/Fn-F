@@ -3,7 +3,7 @@ const admin = require('firebase-admin');
 const { getUserStats } = require('../../server/repositories/sessionsRepository');
 
 describe('sessionsRepository', () => {
-  it('getUserStats aggregates totalFocus and counts sessions', async () => {
+  it('happy path: getUserStats aggregates totalFocus and counts sessions', async () => {
     const result = await getUserStats('user123');
 
     expect(admin.firestore().collection).toHaveBeenCalledWith('sessions');
@@ -14,7 +14,7 @@ describe('sessionsRepository', () => {
     expect(result.sessionsCount).toBe(2);
   });
 
-  it('handles empty sessions', async () => {
+  it('edge case: handles empty sessions', async () => {
     // Override .where to return an empty forEach for this test
     admin.firestore().collection().where.mockImplementationOnce(() => ({
       get: jest.fn(() => ({
