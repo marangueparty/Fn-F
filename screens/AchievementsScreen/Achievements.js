@@ -106,7 +106,7 @@ export default function AchievementsScreen() {
 
       <Text style={styles.subheader}>Penalties Given</Text>
       <Text style={[styles.penaltyCount, { color: penaltyColor }]}>
-        {penaltyMinutes} min deducted
+        {penaltyMinutes} 
       </Text>
 
       <Text style={styles.header}>Achievements</Text>
