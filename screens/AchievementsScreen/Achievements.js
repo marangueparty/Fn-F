@@ -1,13 +1,8 @@
 // screens/AchievementsScreen/AchievementsScreen.js
 
-import {
-  SERVER_HOST_ANDROID,
-  SERVER_HOST_DEVICE,
-  SERVER_HOST_IOS,
-} from '@env';
-import { useIsFocused } from '@react-navigation/native';
-import * as SecureStore from 'expo-secure-store';
-import React, { useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native'
+import * as SecureStore from 'expo-secure-store'
+import React, { useEffect, useState } from 'react'
 import {
   Dimensions,
   Platform,
@@ -16,82 +11,81 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+} from 'react-native'
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons'
+import { getApiHost } from '../../utils/getApiHost'
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const CIRCLE_SIZE = 40;
-
-const HOST =
-  Platform.OS === 'android'
-    ? SERVER_HOST_ANDROID
-    : Platform.OS === 'ios'
-    ? SERVER_HOST_IOS
-    : SERVER_HOST_DEVICE;
+const { width: SCREEN_W } = Dimensions.get('window')
+const CIRCLE_SIZE = 40
+const HOST = getApiHost()
 
 const ACH_LIST = [
-  { id: 'first_session', title: 'First Steps',    desc: 'Complete your first study session',      icon: 'flag-checkered' },
-  { id: 'focus_10h',     title: '10 Hours Focus', desc: 'Accumulate 600 min of focus',             icon: 'clock-check-outline' },
-  { id: 'streak_3',      title: '3-Day Streak',   desc: 'Study at least once per day for 3 days',  icon: 'calendar-star' },
-];
+  { id: 'first_session', title: 'First Steps',    desc: 'Complete your first study session',     icon: 'flag-checkered' },
+  { id: 'focus_10h',     title: '10 Hours Focus', desc: 'Accumulate 600 min of focus',          icon: 'clock-check-outline' },
+  { id: 'streak_3',      title: '3-Day Streak',   desc: 'Study at least once per day for 3 days', icon: 'calendar-star' },
+]
 
 export default function AchievementsScreen() {
-  const isFocused = useIsFocused();
-
-  const [stats, setStats]       = useState({
-    totalFocus:     0,
+  const isFocused = useIsFocused()
+  const [stats, setStats] = useState({
+    netFocus:       0,
+    penaltyMinutes: 0,
     currentLevel:   1,
     nextLevel:      2,
-    minutesToNext:  0,
     minutesForNext: 60,
-    penalties:      0,
-  });
-  const [unlocked, setUnlocked] = useState({});
+    minutesToNext:  0,
+  })
+  const [unlocked, setUnlocked] = useState({})
 
   useEffect(() => {
-    if (!isFocused) return;
-    (async () => {
+    if (!isFocused) return
+    ;(async () => {
       try {
-        const token = await SecureStore.getItemAsync('userToken');
+        const token = await SecureStore.getItemAsync('userToken')
         const res   = await fetch(`${HOST}/achievements/current`, {
           headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        })
+        const data = await res.json()
+        if (!data.success) throw new Error(data.error)
 
-        if (data.success) {
-          // 1) update stats
-          setStats(data.stats);
+        setStats({
+          netFocus:       data.stats.netFocus,
+          penaltyMinutes: data.stats.penaltyMinutes,
+          currentLevel:   data.stats.currentLevel,
+          nextLevel:      data.stats.nextLevel,
+          minutesForNext: data.stats.minutesForNext,
+          minutesToNext:  data.stats.minutesToNext,
+        })
 
-          // 2) build unlocked map from server
-          const map = {};
-          data.achievements.forEach(id => (map[id] = true));
-
-          // 3) ALWAYS unlock "First Steps" once you've done any focus
-          if (data.stats.totalFocus > 0) {
-            map['first_session'] = true;
-          }
-
-          setUnlocked(map);
-        }
+        const map = {}
+        data.achievements.forEach(id => map[id] = true)
+        if (data.stats.rawFocus > 0) map.first_session = true
+        setUnlocked(map)
       } catch (e) {
-        console.warn('Error loading achievements:', e);
+        console.warn(e)
       }
-    })();
-  }, [isFocused]);
+    })()
+  }, [isFocused])
 
-  const { currentLevel, nextLevel, minutesToNext, minutesForNext, penalties } = stats;
+  const {
+    netFocus,
+    penaltyMinutes,
+    currentLevel,
+    nextLevel,
+    minutesForNext,
+  } = stats
+
+  const completedFraction = minutesForNext > 0
+    ? Math.min(1, netFocus / minutesForNext)
+    : 0
+
   const penaltyColor =
-    penalties >= 15 ? '#EB5757' :
-    penalties >=  7 ? '#F2C94C' :
-                      '#27AE60';
-
-  // fraction of level completed
-  const completedFraction = (minutesForNext - minutesToNext) / minutesForNext;
+    penaltyMinutes >= 15 ? '#EB5757' :
+    penaltyMinutes >=  7 ? '#F2C94C' :
+                           '#27AE60'
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Level bar */}
       <Text style={styles.header}>Focus Progress</Text>
       <View style={styles.levelBarWrapper}>
         <View style={styles.levelRow}>
@@ -99,34 +93,26 @@ export default function AchievementsScreen() {
             <Text style={styles.levelText}>{currentLevel}</Text>
           </View>
           <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { flex: completedFraction },
-              ]}
-            />
+            <View style={[styles.progressFill, { flex: completedFraction }]} />
           </View>
           <View style={styles.levelCircle}>
             <Text style={styles.levelText}>{nextLevel}</Text>
           </View>
         </View>
-        {/* SHOW completed minutes, not remaining */}
         <Text style={styles.progressLabel}>
-          {minutesForNext - minutesToNext} / {minutesForNext} min to next level
+          {netFocus} / {minutesForNext} min to next level
         </Text>
       </View>
 
-      {/* Penalties */}
       <Text style={styles.subheader}>Penalties Given</Text>
       <Text style={[styles.penaltyCount, { color: penaltyColor }]}>
-        {penalties}
+        {penaltyMinutes} 
       </Text>
 
-      {/* Achievements */}
       <Text style={styles.header}>Achievements</Text>
       <View style={styles.grid}>
         {ACH_LIST.map(a => {
-          const done = !!unlocked[a.id];
+          const done = !!unlocked[a.id]
           return (
             <View key={a.id} style={styles.card}>
               <Icon
@@ -134,18 +120,18 @@ export default function AchievementsScreen() {
                 size={48}
                 color={done ? '#9B5DEB' : '#CCC'}
               />
-              <Text style={[styles.title, done ? {} : styles.lockedText]}>
+              <Text style={[styles.title, done ? null : styles.lockedText]}>
                 {a.title}
               </Text>
-              <Text style={[styles.desc, done ? {} : styles.lockedText]}>
+              <Text style={[styles.desc,  done ? null : styles.lockedText]}>
                 {a.desc}
               </Text>
             </View>
-          );
+          )
         })}
       </View>
     </ScrollView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -191,4 +177,4 @@ const styles = StyleSheet.create({
   title:            { fontSize:16, fontWeight:'500', textAlign:'center' },
   desc:             { fontSize:12, textAlign:'center', marginTop:4, color:'#666' },
   lockedText:       { color:'#AAA' },
-});
+})

@@ -1,4 +1,5 @@
 // components/WhiteNoisePlayer.js
+
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import React, { useEffect, useState } from 'react';
@@ -9,53 +10,46 @@ export default function WhiteNoisePlayer() {
   const [sound, setSound]       = useState(null);
   const [isPlaying, setPlaying] = useState(false);
 
-  // 1) Configure audio mode once
+  // configure audio mode once
   useEffect(() => {
     Audio.setAudioModeAsync({
       allowsRecordingIOS:        false,
       staysActiveInBackground:   true,
-      interruptionModeIOS:       Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
       playsInSilentModeIOS:      true,
       shouldDuckAndroid:         true,
-      interruptionModeAndroid:   Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-      playThroughEarpieceAndroid:false,
-    });
+      playThroughEarpieceAndroid: false,
+    }).catch(e => console.warn('Audio mode error', e));
   }, []);
 
-  // 2) Preload the sound on mount
+  // load & loop your heavy rain noise
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const { sound: s } = await Audio.Sound.createAsync(
-          require('../assets/sounds/white-noise.mp3'),
+          require('../assets/heavy-rain-white-noise-159772.mp3'),
           { shouldPlay: false, isLooping: true }
         );
         if (mounted) setSound(s);
       } catch (e) {
-        console.error('Failed to load white noise:', e);
+        console.error('🔈 load error', e);
       }
     })();
     return () => {
       mounted = false;
-      if (sound) sound.unloadAsync();
+      if (sound) sound.unloadAsync().catch(() => {});
     };
   }, []);
 
-  // 3) When `isPlaying` flips, call playAsync / pauseAsync
+  // play / pause when toggled
   useEffect(() => {
     if (!sound) return;
     if (isPlaying) {
-      sound.playAsync().catch(e => console.error('playAsync error', e));
+      sound.playAsync().catch(e => console.error('▶️ play error', e));
     } else {
-      sound.pauseAsync().catch(e => console.error('pauseAsync error', e));
+      sound.pauseAsync().catch(e => console.error('⏸ pause error', e));
     }
   }, [isPlaying, sound]);
-
-  const toggle = () => {
-    if (!sound) return;
-    setPlaying(p => !p);
-  };
 
   return (
     <View style={styles.musicPlayer}>
@@ -66,7 +60,10 @@ export default function WhiteNoisePlayer() {
           ))}
         </View>
       )}
-      <TouchableOpacity onPress={toggle} style={styles.musicButton}>
+      <TouchableOpacity
+        style={styles.musicButton}
+        onPress={() => setPlaying(p => !p)}
+      >
         <Feather
           name={isPlaying ? 'pause-circle' : 'play-circle'}
           size={42}
@@ -79,11 +76,10 @@ export default function WhiteNoisePlayer() {
 
 const styles = StyleSheet.create({
   musicPlayer: {
-    marginTop: 20,
     alignItems: 'center',
+    marginTop: 12,
   },
   musicButton: {
-    marginTop: 12,
     padding: 8,
     borderRadius: 30,
     backgroundColor: '#f2f2f2',
@@ -93,5 +89,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-end',
     height: 40,
+    marginBottom: 8,
   },
 });

@@ -31,14 +31,92 @@ exports.login = async (req, res) => {
   }
 };
 
+exports.checkUsername = async (req, res) => {
+  const { username } = req.body;
+  const uid = req.user && (req.user.id || req.user.uid);
+  if (!username) return res.status(400).json({ available: false, error: 'Missing username' });
+  try {
+    const snap = await admin.firestore().collection('usernames').doc(username).get();
+    if (!snap.exists) return res.json({ available: true });
+    const data = snap.data();
+    if (uid && data.uid === uid) return res.json({ available: true });
+    return res.json({ available: false });
+  } catch (err) {
+    console.error('checkUsername error', err);
+    return res.status(500).json({ available: false, error: err.message });
+  }
+};
+
+exports.lookupEmail = async (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Missing username' });
+  try {
+    const snap = await admin.firestore().collection('usernames').doc(username).get();
+    if (!snap.exists) return res.status(404).json({ error: 'Username not found' });
+    const { uid } = snap.data();
+    const userDoc = await admin.firestore().collection('users').doc(uid).get();
+    if (!userDoc.exists) return res.status(404).json({ error: 'User not found' });
+    const { email } = userDoc.data();
+    return res.json({ email });
+  } catch (err) {
+    console.error('lookupEmail error', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateUsername = async (req, res) => {
+  const { newUsername } = req.body;
+  const uid = req.user && (req.user.id || req.user.uid);
+  if (!uid) {
+    return res.status(400).json({ success: false, error: 'Missing or invalid user ID (uid)' });
+  }
+  if (!newUsername || typeof newUsername !== 'string' || !newUsername.trim()) {
+    return res.status(400).json({ success: false, error: 'Invalid newUsername' });
+  }
+  const trimmed = newUsername.trim();
+  try {
+    const userRef = admin.firestore().collection('users').doc(uid);
+    let userDoc = await userRef.get();
+    let userData = userDoc.data() || {};
+    if (!userDoc.exists || !userData.email) {
+      userData.email = req.user.email || '';
+      await userRef.set({ email: userData.email }, { merge: true });
+      userDoc = await userRef.get();
+      userData = userDoc.data() || {};
+    }
+    const oldUsername = userData.username;
+    if (oldUsername === trimmed) {
+      return res.json({ success: true });
+    }
+    const usernameSnap = await admin.firestore().collection('usernames').doc(trimmed).get();
+    if (usernameSnap.exists && usernameSnap.data().uid !== uid) {
+      return res.status(400).json({ success: false, error: 'Username already taken' });
+    }
+    await userRef.set({ username: trimmed }, { merge: true });
+    await admin.firestore().collection('usernames').doc(trimmed).set({ uid });
+    if (oldUsername && oldUsername !== trimmed) {
+      await admin.firestore().collection('usernames').doc(oldUsername).delete();
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('updateUsername error', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 exports.signup = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, username } = req.body;
   if (!FIREBASE_API_KEY) {
     return res.status(500).json({ success:false, error:'Missing FIREBASE_API_KEY' });
   }
-
+  if (!username) {
+    return res.status(400).json({ success:false, error:'Username required' });
+  }
+  const usernameSnap = await admin.firestore().collection('usernames').doc(username).get();
+  if (usernameSnap.exists) {
+    return res.status(400).json({ success:false, error:'Username already taken' });
+  }
   try {
-    // 1) create the account via Firebase REST API
     const r = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
       {
@@ -51,23 +129,53 @@ exports.signup = async (req, res) => {
     if (data.error) {
       return res.status(400).json({ success:false, error:data.error.message });
     }
-
-    // 2) send verification email
     await admin.auth().generateEmailVerificationLink(email);
-
-    // ────────────────────────────────────────────────────────────────────────────
-    // 3) **NEW**: create /users/{uid} document in Firestore with at least the email
-    //    so that you can later query by email (for add-friend and leaderboard).
     const userRecord = await admin.auth().getUserByEmail(email);
     await admin.firestore()
                .collection('users')
                .doc(userRecord.uid)
-               .set({ email }, { merge: true });
-    // ────────────────────────────────────────────────────────────────────────────
-
+               .set({ email, username }, { merge: true });
+    await admin.firestore().collection('usernames').doc(username).set({ uid: userRecord.uid });
     return res.json({ success:true });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success:false, error:err.message });
+  }
+};
+
+exports.getProfile = async (req, res) => {
+  const uid = req.user && (req.user.id || req.user.uid);
+  try {
+    const userRef = admin.firestore().collection('users').doc(uid);
+    let userDoc = await userRef.get();
+    let userData = userDoc.data() || {};
+    if (!userDoc.exists || !userData.email) {
+      userData.email = req.user.email || '';
+      await userRef.set({ email: userData.email }, { merge: true });
+      userDoc = await userRef.get();
+      userData = userDoc.data() || {};
+    }
+    const profile = { email: userData.email || '', username: userData.username || '' };
+    return res.json(profile);
+  } catch (err) {
+    console.error('getProfile error', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// ——— NEW: handle forgot-password ———
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Missing email' });
+  }
+  try {
+    // Will throw if user not found
+    await admin.auth().generatePasswordResetLink(email);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('forgotPassword error', err);
+    const status = err.code === 'auth/user-not-found' ? 404 : 500;
+    return res.status(status).json({ success: false, error: err.message });
   }
 };

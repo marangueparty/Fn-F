@@ -1,22 +1,41 @@
 // screens/SignUp/SignUpScreen.js
 import React, { useState } from 'react';
 import {
-  Alert,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { auth } from '../../firebase'; // ← fixed path
+import { getApiHost } from '../../utils/getApiHost';
 
 export default function SignUpScreen({ navigation }) {
   const [email, setEmail]    = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [checking, setChecking] = useState(false);
+  const host = getApiHost();
 
   const validateEmail = e => /\S+@\S+\.\S+/.test(e);
   const validatePassword = p =>
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*\W).{8,}$/.test(p);
+  const validateUsername = u => /^[a-zA-Z0-9_]{3,20}$/.test(u);
+
+  const checkUsername = async (u) => {
+    if (!validateUsername(u)) return false;
+    try {
+      const res = await fetch(`${host}/auth/check-username`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u })
+      });
+      const json = await res.json();
+      return json.available;
+    } catch {
+      return false;
+    }
+  };
 
   const handleSignUp = async () => {
     if (!email.trim())
@@ -28,10 +47,21 @@ export default function SignUpScreen({ navigation }) {
         'Weak Password',
         '8+ chars including uppercase, lowercase, digit & symbol.'
       );
-
+    if (!validateUsername(username))
+      return Alert.alert('Invalid Username', '3-20 chars, letters, numbers, underscores only.');
+    setChecking(true);
+    const available = await checkUsername(username);
+    setChecking(false);
+    if (!available)
+      return Alert.alert('Username Taken', 'Please choose another username.');
     try {
-      await auth.createUserWithEmailAndPassword(email.trim(), password);
-      await auth.currentUser.sendEmailVerification();
+      const res = await fetch(`${host}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password, username })
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Sign up failed');
       Alert.alert(
         'Verify Your Email',
         'A link has been sent to your inbox. Please check before logging in.'
@@ -45,6 +75,13 @@ export default function SignUpScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Create Account</Text>
+      <TextInput
+        placeholder="Username"
+        value={username}
+        onChangeText={setUsername}
+        style={styles.input}
+        autoCapitalize="none"
+      />
       <TextInput
         placeholder="Email"
         value={email}
@@ -60,8 +97,8 @@ export default function SignUpScreen({ navigation }) {
         onChangeText={setPassword}
         style={styles.input}
       />
-      <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-        <Text style={styles.buttonText}>Sign Up</Text>
+      <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={checking}>
+        <Text style={styles.buttonText}>{checking ? 'Checking...' : 'Sign Up'}</Text>
       </TouchableOpacity>
       <View style={styles.footer}>
         <Text style={styles.footerText}>Already have an account?</Text>
