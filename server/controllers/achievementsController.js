@@ -41,11 +41,14 @@ exports.getCurrent = async (req, res) => {
  */
 exports.postCurrent = async (req, res) => {
   try {
-    // pull the Firebase UID off of req.user
+    // check if req.user and uid exist
+    if (!req.user || !req.user.uid) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: missing user ID' });
+    }
+
     const { uid } = req.user;
     const { focusCollected, sessions, penalties } = req.body;
 
-    // Overwrite raw totals:
     await updateRawTotals(uid, {
       totalFocus:     focusCollected,
       totalSessions:  sessions,

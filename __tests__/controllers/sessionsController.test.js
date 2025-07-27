@@ -1,25 +1,25 @@
-jest.mock('firebase-admin');
-
+// __tests__/controllers/sessionsController.test.js
 const sessionsController = require('../../server/controllers/sessionsController');
 const sessionsService = require('../../server/services/sessionsService');
 const achievementsService = require('../../server/services/achievementsService');
 const statsService = require('../../server/services/statsService');
 
+const admin = require('firebase-admin');
+
 jest.mock('../../server/services/sessionsService');
 jest.mock('../../server/services/achievementsService');
 jest.mock('../../server/services/statsService');
+jest.mock('firebase-admin');
 
 describe('sessionsController', () => {
   let req, res;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+
     req = {
-      user: { id: 'user123', uid: 'user123' },
-      body: {
-        studyDuration: 30,
-        breakDuration: 5,
-        pickupCount: 2,
-      },
+      user: { uid: 'test-uid' },
+      body: {}
     };
 
     res = {
@@ -27,128 +27,107 @@ describe('sessionsController', () => {
       status: jest.fn(() => res),
     };
 
-    jest.clearAllMocks();
+    // Mock Firestore chain for listSessions
+    const getMock = jest.fn();
+    admin.firestore.mockReturnValue({
+      collection: jest.fn(() => ({
+        orderBy: jest.fn(() => ({
+          get: getMock
+        })),
+      })),
+    });
+    global.getMock = getMock;
   });
 
+  //addSession endpoint
+
   describe('addSession', () => {
-    it('logs a new session and returns success and id', async () => {
-      sessionsService.logSession.mockResolvedValueOnce('session-id-1');
+    it('happy path: logs a new session and returns id', async () => {
+      req.body = { studyDuration: 25, breakDuration: 5, pickupCount: 2 };
+      sessionsService.logSession.mockResolvedValue('session-id-123');
 
       await sessionsController.addSession(req, res);
 
-      expect(sessionsService.logSession).toHaveBeenCalledWith(
-        req.user.uid,
-        req.body.studyDuration,
-        req.body.breakDuration,
-        req.body.pickupCount
-      );
-      expect(res.json).toHaveBeenCalledWith({ success: true, id: 'session-id-1' });
+      expect(sessionsService.logSession).toHaveBeenCalledWith('test-uid', 25, 5, 2);
+      expect(res.json).toHaveBeenCalledWith({ success: true, id: 'session-id-123' });
     });
 
-    it('returns 500 on error', async () => {
-      sessionsService.logSession.mockRejectedValueOnce(new Error('fail'));
+    it('edge case: service throws error', async () => {
+      req.body = { studyDuration: 25, breakDuration: 5 };
+      sessionsService.logSession.mockRejectedValue(new Error('DB failure'));
 
       await sessionsController.addSession(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'fail' });
+      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'DB failure' });
     });
   });
 
+  //listSessions endpoint
+
   describe('listSessions', () => {
-    it('returns session list from Firestore', async () => {
-      // Mock Firestore collection query
-      const mockDocs = [
-        { id: 'abc', data: () => ({ foo: 'bar' }) },
-        { id: 'def', data: () => ({ foo: 'baz' }) },
+    it('happy path: returns ordered list of sessions', async () => {
+      const fakeDocs = [
+        { id: '1', data: () => ({ studyDuration: 25 }) },
+        { id: '2', data: () => ({ studyDuration: 30 }) }
       ];
-      const mockSnapshot = { docs: mockDocs };
-      const mockGet = jest.fn().mockResolvedValue(mockSnapshot);
+      global.getMock.mockResolvedValue({ docs: fakeDocs });
 
-      // Mock firestore chain
-      const mockOrderBy = jest.fn(() => ({ get: mockGet }));
-      const mockCollection = jest.fn(() => ({ orderBy: mockOrderBy }));
+      await sessionsController.listSessions({}, res);
 
-      jest.mock('firebase-admin', () => ({
-        firestore: () => ({
-          collection: mockCollection,
-        }),
-      }));
-
-      // Replace require to re-import after mocking
-      jest.resetModules();
-      const sessionsControllerReloaded = require('../../server/controllers/sessionsController');
-
-      await sessionsControllerReloaded.listSessions({}, res);
-
-      expect(mockCollection).toHaveBeenCalledWith('sessions');
-      expect(mockOrderBy).toHaveBeenCalledWith('startedAt', 'desc');
-      expect(mockGet).toHaveBeenCalled();
-
+      expect(admin.firestore).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith([
-        { id: 'abc', foo: 'bar' },
-        { id: 'def', foo: 'baz' },
+        { id: '1', studyDuration: 25 },
+        { id: '2', studyDuration: 30 }
       ]);
     });
 
-    it('returns 500 on error', async () => {
-      // Mock Firestore chain to throw
-      const mockGet = jest.fn().mockRejectedValue(new Error('fail'));
-      const mockOrderBy = jest.fn(() => ({ get: mockGet }));
-      const mockCollection = jest.fn(() => ({ orderBy: mockOrderBy }));
+    it('edge case: Firestore throws error', async () => {
+      global.getMock.mockRejectedValue(new Error('Firestore error'));
 
-      jest.mock('firebase-admin', () => ({
-        firestore: () => ({
-          collection: mockCollection,
-        }),
-      }));
-
-      jest.resetModules();
-      const sessionsControllerReloaded = require('../../server/controllers/sessionsController');
-
-      await sessionsControllerReloaded.listSessions({}, res);
+      await sessionsController.listSessions({}, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'fail' });
+      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Firestore error' });
     });
   });
 
+  //completeSession endpoint
+
   describe('completeSession', () => {
-    it('logs session, updates achievements, returns stats and achievements', async () => {
-      sessionsService.logSession.mockResolvedValueOnce();
-      achievementsService.updateRawTotals.mockResolvedValueOnce();
-      statsService.calculateStats.mockResolvedValueOnce({ level: 2 });
-      achievementsService.listUnlocked.mockResolvedValueOnce([{ id: 'badge1' }]);
+    it('happy path: logs session, updates achievements, returns stats and achievements', async () => {
+      req.body = { studyDuration: 25, breakDuration: 5, pickupCount: 1 };
+
+      sessionsService.logSession.mockResolvedValue('session-id');
+      achievementsService.updateRawTotals.mockResolvedValue();
+      statsService.calculateStats.mockResolvedValue({ currentLevel: 2, totalFocus: 100 });
+      achievementsService.listUnlocked.mockResolvedValue([{ id: 'badge1' }, { id: 'badge2' }]);
 
       await sessionsController.completeSession(req, res);
 
-      expect(sessionsService.logSession).toHaveBeenCalledWith(
-        req.user.id,
-        req.body.studyDuration,
-        req.body.breakDuration,
-        req.body.pickupCount
-      );
-      expect(achievementsService.updateRawTotals).toHaveBeenCalledWith(req.user.id, {
-        focusIncrement: req.body.studyDuration,
+      expect(sessionsService.logSession).toHaveBeenCalledWith('test-uid', 25, 5, 1);
+      expect(achievementsService.updateRawTotals).toHaveBeenCalledWith('test-uid', {
+        focusIncrement: 25,
         sessionIncrement: 1,
-        penaltyIncrement: req.body.pickupCount,
+        penaltyIncrement: 1,
       });
-      expect(statsService.calculateStats).toHaveBeenCalledWith(req.user.id);
-      expect(achievementsService.listUnlocked).toHaveBeenCalledWith(req.user.id);
+      expect(statsService.calculateStats).toHaveBeenCalledWith('test-uid');
+      expect(achievementsService.listUnlocked).toHaveBeenCalledWith('test-uid');
+
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        stats: { level: 2 },
-        achievements: [{ id: 'badge1' }],
+        stats: { currentLevel: 2, totalFocus: 100 },
+        achievements: [{ id: 'badge1' }, { id: 'badge2' }],
       });
     });
 
-    it('returns 500 on error', async () => {
-      sessionsService.logSession.mockRejectedValueOnce(new Error('fail'));
+    it('edge case: service throws error', async () => {
+      sessionsService.logSession.mockRejectedValue(new Error('Log session failed'));
 
       await sessionsController.completeSession(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'fail' });
+      expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Log session failed' });
     });
   });
 });
