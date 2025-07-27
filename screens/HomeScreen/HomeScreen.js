@@ -20,6 +20,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {/* floating profile/settings button */}
       <TouchableOpacity
+        testID="profile-button"
         onPress={() => navigation.navigate('Profile')}
         style={styles.profileIcon}
       >
