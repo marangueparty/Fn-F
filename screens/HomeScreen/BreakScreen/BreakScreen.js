@@ -7,13 +7,12 @@ import { StyleSheet, Text, View } from 'react-native';
 export default function BreakScreen() {
   const navigation = useNavigation();
   const route      = useRoute();
-  // breakDuration is passed in minutes
-  const { breakDuration } = route.params;
-  // convert minutes → seconds
+  const { breakDuration, onBreakEnd, sessionData } = route.params;
+
   const initialSeconds = breakDuration * 60;
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
 
-  // 1) countdown only updates state
+  // countdown
   useEffect(() => {
     const timer = setInterval(() => {
       setSecondsLeft(prev => Math.max(prev - 1, 0));
@@ -21,16 +20,24 @@ export default function BreakScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  // 2) when it hits 0, navigate into Home→Focus
+  // when timer hits zero
   useEffect(() => {
     if (secondsLeft === 0) {
-      navigation.navigate('Home', { screen: 'Focus' });
+      if (typeof onBreakEnd === 'function') {
+        onBreakEnd();
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home', {
+          screen: 'Focus',
+          params: { breakJustEnded: true, sessionData },
+        });
+      }
     }
-  }, [secondsLeft, navigation]);
+  }, [secondsLeft, navigation, onBreakEnd, sessionData]);
 
   const formatTime = secs => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
+    const m = String(Math.floor(secs / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
     return `${m}:${s}`;
   };
 

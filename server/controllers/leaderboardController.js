@@ -1,50 +1,34 @@
 // server/controllers/leaderboardController.js
-const admin = require('firebase-admin');
-const { listFriends } = require('../services/friendsService');
-const { calculateStats } = require('../services/statsService');
+const admin = require('firebase-admin')
+const { listFriends } = require('../services/friendsService')
+const { calculateStats } = require('../services/statsService')
 
 exports.getLeaderboard = async (req, res, next) => {
   try {
-    // pull the Firebase UID off of req.user
-    const { uid } = req.user;
-    console.log('→ getLeaderboard called by UID:', uid);
-    const me = uid;
+    const me = req.user.uid
+    const friends = await listFriends(me)
+    const allUids = [me, ...friends]
 
-    // fetch your friends' UIDs
-    const friends = await listFriends(me);
-    // include yourself
-    const allUids = [me, ...friends];
-    // fetch stats + email for each
     const entries = await Promise.all(
       allUids.map(async uid => {
-        const stats = await calculateStats(uid);
-        // Fetch user doc from Firestore for username
-        let username = '';
-        try {
-          const userDoc = await admin
-            .firestore()
-            .collection('users')
-            .doc(uid)
-            .get();
-          username = userDoc.exists ? (userDoc.data().username || '') : '';
-        } catch (e) {
-          console.warn('Could not fetch username for leaderboard:', uid, e);
-        }
-        const user = await admin.auth().getUser(uid);
+        const stats = await calculateStats(uid)
+        // fetch username & email…
+        const userDoc = await admin.firestore().collection('users').doc(uid).get()
+        const username = userDoc.exists ? userDoc.data().username || '' : ''
+        const user = await admin.auth().getUser(uid)
         return {
           uid,
           username,
           email: user.email,
-          totalFocus: stats.totalFocus,
-        };
+          minutes: stats.netFocus,       // ← use netFocus
+        }
       })
-    );
-    // sort descending by totalFocus
-    entries.sort((a, b) => b.totalFocus - a.totalFocus);
-    console.log('Leaderboard entries:', entries);
-    res.json({ success: true, leaderboard: entries });
+    )
+
+    entries.sort((a, b) => b.minutes - a.minutes)
+
+    res.json({ success: true, leaderboard: entries })
   } catch (err) {
-    console.error('getLeaderboard error', err);
-    next(err);
+    next(err)
   }
-};
+}

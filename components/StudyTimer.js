@@ -1,11 +1,11 @@
 // components/StudyTimer.js
 
 import Slider from '@react-native-community/slider';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, AppState, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import { getApiHost } from '../utils/getApiHost';
 import WhiteNoisePlayer from './WhiteNoisePlayer';
@@ -15,6 +15,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function StudyTimer() {
   const navigation = useNavigation();
+  const route = useRoute();
 
   const [duration,     setDuration]    = useState(25);
   const [rounds,       setRounds]      = useState(1);
@@ -28,7 +29,7 @@ export default function StudyTimer() {
     Notifications.requestPermissionsAsync();
   }, []);
 
-  // count app-background events as pickups
+  // count app‐background events as pickups
   useEffect(() => {
     let prev = AppState.currentState;
     const listener = newState => {
@@ -62,49 +63,73 @@ export default function StudyTimer() {
   };
 
   // report session to backend
-  const logSession = async breakDur => {
+  const logSession = async (breakDur, sessionDuration, sessionPickupCount) => {
+    console.log('logSession called', { sessionDuration, breakDur, sessionPickupCount });
     try {
       const token = await SecureStore.getItemAsync('userToken');
-      await fetch(`${HOST}/sessions/complete`, {
+      console.log('Token used for logSession:', token);
+      const resp = await fetch(`${HOST}/sessions/complete`, {
         method:  'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization:  `Bearer ${token}`,
         },
         body: JSON.stringify({
-          studyDuration: duration,
+          studyDuration: sessionDuration,
           breakDuration: breakDur,
-          pickupCount,
+          pickupCount: sessionPickupCount,
         }),
       });
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error('Failed to log session:', resp.status, errorText);
+        Alert.alert('Session Not Saved', `Failed to log session: ${resp.status}`);
+      } else {
+        console.log('Session logged successfully');
+      }
     } catch (e) {
       console.warn('Complete session failed:', e);
+      Alert.alert('Session Not Saved', `Error: ${e.message}`);
     }
   };
+
+  // Listen for breakJustEnded param and log session if needed
+  useEffect(() => {
+    if (route.params && route.params.breakJustEnded && route.params.sessionData) {
+      const { duration: sessionDuration, breakDuration, pickupCount: sessionPickupCount } = route.params.sessionData;
+      logSession(breakDuration, sessionDuration, sessionPickupCount);
+      // Reset the param so it doesn't trigger again
+      navigation.setParams({ breakJustEnded: false, sessionData: null });
+    }
+  }, [route.params?.breakJustEnded]);
 
   // watch for timer / rounds
   useEffect(() => {
     if (secondsLeft > 0) return;
     clearInterval(timerRef.current);
 
-    const breakTime = Math.floor(duration / 5) * 60 * 1000; // ms
+    const breakMin  = Math.floor(duration / 5);
+    const breakTime = breakMin * 60 * 1000; // ms
 
     // intermediate break
     if (roundIdx < rounds) {
-      // schedule break-end notification at now + breakTime
+      logSession(breakMin, duration, pickupCount);
+
       Notifications.scheduleNotificationAsync({
         content: {
-          title: "🏁 Break Over",
-          body:  `Your ${Math.floor(duration/5)}-minute break is up!`,
+          title: "\uD83C\uDFC1 Break Over",
+          body:  `Your ${breakMin}-minute break is up!`,
         },
-        trigger: Platform.OS === 'ios'
-          ? { date: new Date(Date.now() + breakTime) }
-          : { seconds: Math.floor(duration/5) * 60, repeats: false },
+        trigger:
+          Platform.OS === 'ios'
+            ? { date: new Date(Date.now() + breakTime) }
+            : { seconds: breakMin * 60, repeats: false },
       });
 
       navigation.navigate('BreakScreen', {
-        breakDuration: Math.floor(duration / 5),
+        breakDuration: breakMin,
         onBreakEnd: () => {
+          logSession(breakMin, duration, pickupCount);
           setRoundIdx(i => i + 1);
           setSecondsLeft(duration * 60);
           startTimer();
@@ -113,24 +138,24 @@ export default function StudyTimer() {
       return;
     }
 
-    // final completion
-    (async () => {
-      // schedule study-end notification now? no, it's past.
-      await logSession(Math.floor(duration / 5));
-
+    // final break: now passing onBreakEnd so the final logSession fires
+    if (roundIdx <= rounds) {
       Notifications.scheduleNotificationAsync({
         content: {
-          title: "🎉 All Rounds Complete",
-          body:  `You finished ${rounds} round(s)!`,
+          title: "Study Session Ended",
+          body:  "Time for a break!",
         },
-        trigger: null, // immediate
+        trigger: null,
       });
 
-      navigation.navigate('Home', {
-        screen: 'Focus',
-        params: { refreshKey: Date.now() },
+      navigation.navigate('BreakScreen', {
+        breakDuration: breakMin,
+        onBreakEnd: () => {
+          logSession(breakMin, duration, pickupCount);
+        },
       });
-    })();
+      return;
+    }
   }, [secondsLeft]);
 
   return (
@@ -151,7 +176,9 @@ export default function StudyTimer() {
               onPress={() => setDuration(d => Math.min(120, d + 5))}
               onLongPress={() => setDuration(d => Math.max(5, d - 5))}
             >
-              <Text style={[styles.durationText, { fontSize: SCREEN_WIDTH * 0.06 }]}>🕒 {duration} min</Text>
+              <Text style={[styles.durationText, { fontSize: SCREEN_WIDTH * 0.06 }]}>
+                🕒 {duration} min
+              </Text>
             </TouchableOpacity>
           )}
         </AnimatedCircularProgress>
@@ -169,18 +196,26 @@ export default function StudyTimer() {
       />
 
       <Text style={[styles.timer, { fontSize: SCREEN_WIDTH * 0.07 }]}>
-        {`${Math.floor(secondsLeft / 60)
-          .toString()
-          .padStart(2,'0')}:${(secondsLeft % 60)
-          .toString()
-          .padStart(2,'0')}`}
+        {`${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`}
       </Text>
 
-      <TouchableOpacity style={[styles.button, { width: SCREEN_WIDTH * 0.35, borderRadius: SCREEN_WIDTH * 0.175, paddingVertical: SCREEN_WIDTH * 0.035, marginBottom: SCREEN_WIDTH * 0.02 }]} onPress={startTimer}>
-        <Text style={[styles.buttonText, { fontSize: SCREEN_WIDTH * 0.04 }]}>Start</Text>
+      <TouchableOpacity
+        style={[
+          styles.button,
+          {
+            width: SCREEN_WIDTH * 0.35,
+            borderRadius: SCREEN_WIDTH * 0.175,
+            paddingVertical: SCREEN_WIDTH * 0.035,
+            marginBottom: SCREEN_WIDTH * 0.02,
+          },
+        ]}
+        onPress={startTimer}
+      >
+        <Text style={[styles.buttonText, { fontSize: SCREEN_WIDTH * 0.04 }]}>
+          Start
+        </Text>
       </TouchableOpacity>
 
-      {/* Display pickup count */}
       <Text style={{ fontSize: SCREEN_WIDTH * 0.04, color: '#5e17eb' }}>
         Pick-ups detected: {pickupCount}
       </Text>

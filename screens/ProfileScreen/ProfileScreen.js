@@ -1,280 +1,235 @@
-// screens/ProfileScreen/ProfileScreen.js
+// screens/LoginScreen.js
 
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import React, { useState } from 'react';
 import {
   Alert,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
-import { auth } from '../../firebase';
 import { getApiHost } from '../../utils/getApiHost';
 
-const HOST = getApiHost();
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-export default function ProfileScreen() {
-  const [friendEmail, setFriendEmail] = useState('');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [newUsername, setNewUsername] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+export default function LoginScreen({ navigation }) {
+  const [emailOrUsername, setEmailOrUsername] = useState('');
+  const [password, setPassword]               = useState('');
+  const [showResetModal, setShowResetModal]   = useState(false);
+  const [resetEmail,    setResetEmail]        = useState('');
+  const host = getApiHost();
 
-  const navigation = useNavigation();
+  const validateEmail = e => /\S+@\S+\.\S+/.test(e);
+  const validatePassword = p =>
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*\W).{8,}$/.test(p);
 
-  // Replace useEffect with useFocusEffect for profile fetch
-  useFocusEffect(
-    React.useCallback(() => {
-      let isActive = true;
-      (async () => {
-        try {
-          const token = await SecureStore.getItemAsync('userToken');
-          if (!token) {
-            setLoading(false);
-            Alert.alert('Error', 'User not authenticated. Please log in again.');
-            return;
-          }
-          // Fetch user profile from backend
-          const res = await fetch(`${HOST}/auth/profile`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const json = await res.json();
-          console.log('Profile response:', json);
-          if (!res.ok || !json.email) {
-            setLoading(false);
-            Alert.alert('Could not load profile');
-            return;
-          }
-          setEmail(json.email);
-          setUsername(json.username || ''); // Set username if present, else empty string
-          setLoading(false);
-          // If username is missing, show prompt
-          if (!json.username) setShowUsernamePrompt(true);
-        } catch (e) {
-          setLoading(false);
-          Alert.alert('Error', 'Could not load profile.');
-        }
-      })();
-      return () => { isActive = false; };
-    }, [])
-  );
-
-  const handleUsernameChange = async () => {
-    const trimmed = newUsername.trim();
-    if (!trimmed) return Alert.alert('Enter a username');
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(trimmed))
-      return Alert.alert('Invalid Username', '3-20 chars, letters, numbers, underscores only.');
-    try {
-      const token = await SecureStore.getItemAsync('userToken');
-      if (!token) {
-        Alert.alert('Error', 'User not authenticated. Please log in again.');
-        return;
-      }
-      // Check username availability
-      const checkRes = await fetch(`${HOST}/auth/check-username`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ username: trimmed })
-      });
-      const checkJson = await checkRes.json();
-      if (!checkJson.available) return Alert.alert('Username Taken', 'Please choose another username.');
-      // Update username (backend gets UID from token, not from body)
-      const updateRes = await fetch(`${HOST}/auth/update-username`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ newUsername: trimmed })
-      });
-      const updateJson = await updateRes.json();
-      if (!updateJson.success) throw new Error(updateJson.error || 'Update failed');
-      setUsername(trimmed);
-      setNewUsername('');
-      setShowUsernamePrompt(false);
-      setEditing(false);
-      Alert.alert('Success', 'Username updated!');
-    } catch (e) {
-      Alert.alert('Error', e.message);
+  const handleLogin = async () => {
+    if (!emailOrUsername.trim()) {
+      return Alert.alert('Invalid Input','Please enter your email or username.');
     }
-  };
-
-  const handleAddFriend = async () => {
-    if (!friendEmail.trim()) {
-      return Alert.alert('Enter an email');
+    if (!validatePassword(password)) {
+      return Alert.alert(
+        'Weak Password',
+        'Must be 8+ chars with uppercase, lowercase, digit & symbol.'
+      );
     }
-    try {
-      const token = await SecureStore.getItemAsync('userToken');
-      const res = await fetch(`${HOST}/friends`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email: friendEmail.trim() }),
-      });
-      let json;
+
+    // if they entered a username, look up email first
+    let email = emailOrUsername.trim();
+    if (!validateEmail(emailOrUsername)) {
       try {
-        json = await res.json();
-      } catch (e) {
-        // If response is not JSON (e.g., HTML error page), show user-friendly error
-        Alert.alert('Error', 'User not found');
-        return;
+        const res = await fetch(`${host}/auth/lookup-email`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ username: emailOrUsername.trim() })
+        });
+        const json = await res.json();
+        if (!json.email) throw new Error(json.error||'Username not found');
+        email = json.email;
+      } catch (err) {
+        return Alert.alert('Login failed', err.message);
       }
-      if (!json.success) throw new Error(json.error || 'Failed');
-      Alert.alert('Friend added!');
-      setFriendEmail('');
-    } catch (e) {
-      console.warn(e);
-      Alert.alert('Error', e.message);
+    }
+
+    // now attempt login
+    try {
+      const res = await fetch(`${host}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error||'Login failed');
+      await SecureStore.setItemAsync('userToken', json.token);
+      navigation.replace('Home');
+    } catch (err) {
+      Alert.alert('Login failed', err.message);
     }
   };
 
-  // Add this function inside ProfileScreen
-  const handleResetPassword = async () => {
-    if (!email) {
-      Alert.alert('Error', 'No email found for this account.');
-      return;
+  const handleForgotPassword = () => {
+    setResetEmail('');
+    setShowResetModal(true);
+  };
+
+  const submitForgotPassword = async () => {
+    if (!validateEmail(resetEmail.trim())) {
+      return Alert.alert('Invalid Email','Please enter a valid email address.');
     }
     try {
-      await auth.sendPasswordResetEmail(email);
-      Alert.alert('Password Reset', 'A password reset email has been sent to your email address.');
-    } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to send password reset email.');
+      const res = await fetch(`${host}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ email: resetEmail.trim() }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error||'Request failed');
+      Alert.alert(
+        'Email Sent',
+        'Check your inbox for a password reset link.'
+      );
+    } catch (err) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setShowResetModal(false);
     }
   };
-
-  const handleSignOut = async () => {
-    try {
-      await auth.signOut();
-      await SecureStore.deleteItemAsync('userToken');
-      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-    } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to sign out.');
-    }
-  };
-
-  if (loading) return <View style={styles.container}><Text>Loading...</Text></View>;
 
   return (
-    <View style={styles.container}>
-      {showUsernamePrompt && (
-        <View style={styles.usernamePromptBox}>
-          <Text style={styles.usernamePromptText}>
-            Set a username to appear on the leaderboard and for social features!
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter username"
-            autoCapitalize="none"
-            value={newUsername}
-            onChangeText={setNewUsername}
-          />
-          <TouchableOpacity style={styles.button} onPress={handleUsernameChange}>
-            <Text style={styles.buttonText}>Set Username</Text>
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS==='ios'?'padding':undefined}
+      >
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+
+        <Text style={styles.title}>Welcome Back</Text>
+
+        <TextInput
+          placeholder="Email or Username"
+          value={emailOrUsername}
+          onChangeText={setEmailOrUsername}
+          style={styles.input}
+          autoCapitalize="none"
+        />
+
+        <TextInput
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          style={styles.input}
+        />
+
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Log In</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleForgotPassword}>
+          <Text style={styles.forgotText}>Forgot password?</Text>
+        </TouchableOpacity>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don’t have an account?</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+            <Text style={styles.linkText}> Sign Up</Text>
           </TouchableOpacity>
         </View>
-      )}
-      <Text style={styles.header}>Profile</Text>
-      <Text style={styles.infoText}>Email: {email}</Text>
-      <Text style={styles.infoText}>Username: {username || '(not set)'}</Text>
-      {!showUsernamePrompt && (editing ? (
-        <View style={{ marginBottom: 16 }}>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter username"
-            autoCapitalize="none"
-            value={newUsername}
-            onChangeText={setNewUsername}
-          />
-          <TouchableOpacity style={styles.button} onPress={handleUsernameChange}>
-            <Text style={styles.buttonText}>Set Username</Text>
-          </TouchableOpacity>
+      </KeyboardAvoidingView>
+
+      {/* ——— Forgot Password Modal ——— */}
+      <Modal
+        visible={showResetModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowResetModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter your email to receive a reset link
+            </Text>
+            <TextInput
+              placeholder="your@email.com"
+              value={resetEmail}
+              onChangeText={setResetEmail}
+              style={styles.input}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowResetModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={submitForgotPassword}
+              >
+                <Text style={styles.saveButtonText}>Send Link</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      ) : (
-        <TouchableOpacity style={styles.button} onPress={() => setEditing(true)}>
-          <Text style={styles.buttonText}>Change Username</Text>
-        </TouchableOpacity>
-      ))}
-      <Text style={styles.header}>Add a Friend</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="friend@example.com"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={friendEmail}
-        onChangeText={setFriendEmail}
-      />
-      <TouchableOpacity style={styles.button} onPress={handleAddFriend}>
-        <Text style={styles.buttonText}>Add Friend</Text>
-      </TouchableOpacity>
-      {/* Reset Password button moved below Add Friend */}
-      {email ? (
-        <TouchableOpacity style={[styles.button, { marginTop: 24 }]} onPress={handleResetPassword}>
-          <Text style={styles.buttonText}>Reset Password</Text>
-        </TouchableOpacity>
-      ) : null}
-      {/* Sign Out button below Reset Password */}
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Text style={styles.signOutButtonText}>Sign Out</Text>
-      </TouchableOpacity>
-    </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex:1, padding:16, backgroundColor:'#fff' },
-  header:    { fontSize:20, fontWeight:'600', marginBottom:12 },
-  input: {
-    borderWidth:1,
-    borderColor:'#ccc',
+  safe:      { flex:1, backgroundColor:'#fff' },
+  container: { flex:1, justifyContent:'center', paddingHorizontal: SCREEN_W*0.05 },
+  logo:      { width:'50%', height: SCREEN_H*0.25, alignSelf:'center', marginBottom: SCREEN_H*0.05 },
+  title:     { fontSize: SCREEN_H*0.04, fontWeight:'bold', textAlign:'center', marginBottom: SCREEN_H*0.05 },
+  input:     {
+    width:'100%',
+    paddingVertical: SCREEN_H*0.02,
+    paddingHorizontal: SCREEN_W*0.03,
     borderRadius:8,
-    padding:12,
-    marginBottom:12,
+    backgroundColor:'#f9f9f9',
+    marginBottom: SCREEN_H*0.02,
   },
-  button: {
-    backgroundColor: '#7B2FF2',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 12,
+  button:    { backgroundColor:'#5e17eb', paddingVertical: SCREEN_H*0.025, alignItems:'center', marginTop: SCREEN_H*0.01 },
+  buttonText:{ color:'#fff', fontSize: SCREEN_H*0.022, fontWeight:'bold' },
+  forgotText:{ color:'#007AFF', textAlign:'center', marginTop:8 },
+  footer:    { flexDirection:'row', justifyContent:'center', marginTop: SCREEN_H*0.03 },
+  footerText:{ fontSize: SCREEN_H*0.02, color:'#444' },
+  linkText:  { fontSize: SCREEN_H*0.02, color:'#007AFF', fontWeight:'bold' },
+
+  /* Modal Styles */
+  modalOverlay:{
+    flex:1,
+    backgroundColor:'rgba(0,0,0,0.4)',
+    justifyContent:'center',
+    alignItems:'center',
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
+  modalContent:{
+    width: SCREEN_W*0.8,
+    backgroundColor:'#fff',
+    borderRadius:12,
+    padding:20,
   },
-  infoText: {
-    marginBottom: 8,
-    fontSize: 16,
-  },
-  usernamePromptBox: {
-    backgroundColor:'#FFF3CD',
-    borderRadius:8,
-    padding:12,
-    marginBottom:16,
-    borderWidth:1,
-    borderColor:'#FFECB3',
-  },
-  usernamePromptText: {
-    color:'#856404',
-    fontWeight:'600',
-    marginBottom:8,
-    fontSize: 15,
-  },
-  signOutButton: {
-    backgroundColor: '#e53935',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  signOutButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
+  modalTitle:{ fontSize:18,fontWeight:'600',color:'#333',marginBottom:8,textAlign:'center' },
+  modalSubtitle:{ fontSize:14,color:'#666',marginBottom:16, textAlign:'center' },
+  modalButtons:{ flexDirection:'row', justifyContent:'space-between' },
+  modalButton:{ flex:1, padding:12, borderRadius:6, alignItems:'center' },
+  cancelButton:{ backgroundColor:'#eee', marginRight:8 },
+  saveButton:{ backgroundColor:'#5e17eb' },
+  cancelButtonText:{ color:'#555' },
+  saveButtonText:{ color:'#fff' },
 });
