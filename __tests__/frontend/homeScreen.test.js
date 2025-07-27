@@ -33,10 +33,10 @@ describe('HomeScreen', () => {
     );
 
     expect(getByTestId('profile-button')).toBeTruthy();
-    expect(getByText('Timer')).toBeTruthy();
-    expect(getByText('Focus')).toBeTruthy();
-    expect(getByText('Achievements')).toBeTruthy();
-    expect(getByText('Leaderboard')).toBeTruthy();
+    expect(getByTestId('timer-tab')).toBeTruthy();
+    expect(getByTestId('focus-tab')).toBeTruthy();
+    expect(getByTestId('achievement-tab')).toBeTruthy();
+    expect(getByTestId('leaderboard-tab')).toBeTruthy();
   });
 
   it('happy path: navigates to Profile when profile button is pressed', () => {

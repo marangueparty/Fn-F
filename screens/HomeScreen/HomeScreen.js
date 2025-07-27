@@ -45,10 +45,30 @@ export default function HomeScreen() {
           tabBarInactiveTintColor: 'gray',
         })}
       >
-        <Tab.Screen name="Timer"        component={HomeTab} />
-        <Tab.Screen name="Focus"        component={FocusTab} />
-        <Tab.Screen name="Achievements" component={AchievementsTab} />
-        <Tab.Screen name="Leaderboard"  component={LeaderboardTab} />
+        <Tab.Screen name="Timer"
+        component={HomeTab} 
+        options={{
+          tabBarTestID: 'timer-tab'}}
+          />
+
+        <Tab.Screen name="Focus"        
+        component={FocusTab}
+        options={{
+          tabBarTestID: 'focus-tab'}}
+           />
+
+        <Tab.Screen name="Achievements" 
+        component={AchievementsTab}
+        options={{
+          tabBarTestID: 'achievement-tab'}} 
+          />
+
+        <Tab.Screen name="Leaderboard"  
+        component={LeaderboardTab}
+        options={{
+          tabBarTestID: 'leaderboard-tab'}}
+           />
+           
       </Tab.Navigator>
     </View>
   );
